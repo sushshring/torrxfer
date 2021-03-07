@@ -1,0 +1,20 @@
+module github.com/sushshring/torrxfer
+
+go 1.16
+
+require (
+	github.com/alecthomas/kingpin v2.2.6+incompatible
+	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751 // indirect
+	github.com/alecthomas/units v0.0.0-20210208195552-ff826a37aa15 // indirect
+	github.com/gdamore/tcell/v2 v2.0.1-0.20201017141208-acf90d56d591 // indirect
+	github.com/golang/protobuf v1.4.2 // indirect
+	github.com/inhies/go-bytesize v0.0.0-20201103132853-d0aed0d254f8 // indirect
+	github.com/kelseyhightower/envconfig v1.4.0
+	github.com/pkg/errors v0.9.1
+	github.com/rivo/tview v0.0.0-20210217110421-8a8f78a6dd01
+	github.com/rs/zerolog v1.20.0
+	github.com/sirupsen/logrus v1.8.0
+	google.golang.org/grpc v1.36.0
+	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.1.0 // indirect
+	google.golang.org/protobuf v1.25.0 // indirect
+)

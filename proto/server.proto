@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+option go_package = "github.com/sushshring/pkg/rpc";
+
+service RpcTorrxferServer {
+    // Transfer a stream of bytes for a file and returns the summary of the transferred file
+    rpc TransferFile(TransferFileRequest) returns (FileSummary) {}
+
+    // Query the status of the transferred file and return a summary of the file
+    rpc QueryFile(File) returns (FileSummary) {}
+}
+
+// A TransferFileRequest contains all data needed to transfer a downloaded file
+message TransferFileRequest {
+    File File = 1;
+    bytes data = 2;
+}
+
+// A File represents a client's view of the file metadata being transferred
+message File {
+    string name = 1;
+    string fullPath = 2;
+    string dataHash = 3;
+    optional string mediaDirectory = 4;
+    optional uint64 createdTime = 5;
+    optional uint64 modifiedTime = 6;
+    optional uint64 size = 7;
+}
+
+// A FileSummary represents a client's view of the file metadata being transferred
+message FileSummary {
+    string name = 1;
+    string fullPath = 2;
+    string dataHash = 3;
+    optional string mediaDirectory = 4;
+    optional uint64 createdTime = 5;
+    optional uint64 modifiedTime = 6;
+    optional uint64 size = 7;
+    optional uint64 sizeOnDisk = 8;
+}

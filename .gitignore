@@ -1,0 +1,4 @@
+.vscode/launch.json
+.vscode/spellright.dict
+bin/client
+bin/torrxfer-client
