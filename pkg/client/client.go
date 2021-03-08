@@ -4,6 +4,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rs/zerolog/log"
 	"github.com/sushshring/torrxfer/pkg/common"
 	"github.com/sushshring/torrxfer/pkg/net"
 )
@@ -12,12 +13,14 @@ import (
 type TorrxferClient struct {
 	connections         []ServerConnection
 	notificationChannel chan ServerNotification
+	fileStoredDbs       []*FileWatcher
 	mux                 sync.Mutex
 }
 
 func NewTorrxferClient() *TorrxferClient {
 	// Initialize from local db
 	c := new(TorrxferClient)
+	c.fileStoredDbs = make([]*FileWatcher, 1)
 	c.connections = make([]ServerConnection, 1)
 	c.notificationChannel = make(chan ServerNotification)
 	c.mux = sync.Mutex{}
@@ -25,12 +28,30 @@ func NewTorrxferClient() *TorrxferClient {
 }
 
 // WatchDirectory watches a provided directory for changes and returns a channel the yields filepaths
-func (client *TorrxferClient) WatchDirectory(dirname string) (<-chan string, error) {
-	return nil, nil
+func (client *TorrxferClient) WatchDirectory(dirname string) error {
+	client.mux.Lock()
+	defer client.mux.Unlock()
+	fileWatcher, err := NewFileWatcher(dirname)
+	if err != nil {
+		log.Debug().Err(err).Msg("Failed to create file watcher")
+		return err
+	}
+	client.fileStoredDbs = append(client.fileStoredDbs, fileWatcher)
+	// Start listening for files to be transferred
+	go func() {
+		for file := range fileWatcher.RegisterForFileNotifications() {
+			if err := client.transferToServer(file.Path); err != nil {
+				log.Debug().Err(err).Msg("File transfer to server failed")
+				// Since file transfer failed, remove this from the DB so that a transfer is attempted at next run
+				fileWatcher.RemoveWatchedFile(file.Path)
+			}
+		}
+	}()
+	return nil
 }
 
 // TransferToServer reads a provided file and transfers it to the connected servers
-func (client *TorrxferClient) TransferToServer(filename string) error {
+func (client *TorrxferClient) transferToServer(filename string) error {
 	return nil
 }
 

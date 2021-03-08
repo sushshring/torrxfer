@@ -7,10 +7,13 @@ require (
 	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751 // indirect
 	github.com/alecthomas/units v0.0.0-20210208195552-ff826a37aa15 // indirect
 	github.com/gdamore/tcell/v2 v2.0.1-0.20201017141208-acf90d56d591 // indirect
+	github.com/golang-collections/collections v0.0.0-20130729185459-604e922904d3 // indirect
 	github.com/golang/protobuf v1.4.2 // indirect
 	github.com/inhies/go-bytesize v0.0.0-20201103132853-d0aed0d254f8 // indirect
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/pkg/errors v0.9.1
+	github.com/prologic/bitcask v0.3.10 // indirect
+	github.com/radovskyb/watcher v1.0.7 // indirect
 	github.com/rivo/tview v0.0.0-20210217110421-8a8f78a6dd01
 	github.com/rs/zerolog v1.20.0
 	github.com/sirupsen/logrus v1.8.0

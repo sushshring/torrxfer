@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/sushshring/torrxfer/pkg/common"
@@ -28,6 +29,16 @@ func HashFile(filepath string) (string, error) {
 	return fmt.Sprintf("%x", sum), nil
 }
 
+func Hash(key string) (string, error) {
+	hash := sha256.New()
+	if _, err := io.Copy(hash, strings.NewReader(key)); err != nil {
+		common.LogError(err, "Could not copy file contexts")
+		return "", err
+	}
+	sum := hash.Sum(nil)
+	return fmt.Sprintf("%x", sum), nil
+}
+
 // VerifyCert verifies is a pem cert file is valid and trusted
 func VerifyCert(filepath string, hostname string) (bool, *x509.Certificate, error) {
 	bytes, err := os.ReadFile(filepath)
@@ -37,7 +48,7 @@ func VerifyCert(filepath string, hostname string) (bool, *x509.Certificate, erro
 	}
 	roots := x509.NewCertPool()
 
-	block, _ := pem.Decode([]byte(bytes))
+	block, rest := pem.Decode([]byte(bytes))
 	if block == nil {
 		common.LogError(errors.New("Failed to parse certificate PEM"), "")
 		return false, nil, err
@@ -47,6 +58,7 @@ func VerifyCert(filepath string, hostname string) (bool, *x509.Certificate, erro
 		common.LogError(err, "Failed to parse certificate")
 		return false, nil, err
 	}
+	roots.AppendCertsFromPEM(rest)
 
 	opts := x509.VerifyOptions{
 		DNSName: hostname,

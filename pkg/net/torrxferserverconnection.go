@@ -41,7 +41,6 @@ func NewTorrxferServerConnection(server *common.ServerConnectionConfig) (*Torrxf
 		return nil, nil
 	}
 	log.Debug().Msg("Connected!")
-	defer conn.Close()
 	serverConnection := new(TorrxferServerConnection)
 	serverConnection.cc = conn
 	return serverConnection, nil

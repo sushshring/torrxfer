@@ -65,16 +65,18 @@ func (table *LogTable) Write(p []byte) (n int, err error) {
 // Helper thread only
 func updateServerState(serverNotification torrxfer.ServerNotification) {
 	log.Debug().Uint8("Notification: ", uint8(serverNotification.NotificationType)).Msg("Received server notification")
-	tvConnectionStatusMux.Lock()
-	defer tvConnectionStatusMux.Unlock()
-	switch serverNotification.NotificationType {
-	case torrxfer.Connected:
-		tvConnectionStatusElements = append(tvConnectionStatusElements, generateServerStatusUI(serverNotification.Connection))
-		break
+	{
+		tvConnectionStatusMux.Lock()
+		defer tvConnectionStatusMux.Unlock()
+		switch serverNotification.NotificationType {
+		case torrxfer.Connected:
+			tvConnectionStatusElements = append(tvConnectionStatusElements, generateServerStatusUI(serverNotification.Connection))
+			break
 
-	case torrxfer.Disconnected:
-		tvConnectionStatusElements = append(tvConnectionStatusElements[:serverNotification.Connection.Index], tvConnectionStatusElements[serverNotification.Connection.Index+1:]...)
-		break
+		case torrxfer.Disconnected:
+			tvConnectionStatusElements = append(tvConnectionStatusElements[:serverNotification.Connection.Index], tvConnectionStatusElements[serverNotification.Connection.Index+1:]...)
+			break
+		}
 	}
 	rows := make([]int, serverNotification.Connection.Index+1)
 	for i := range rows {
@@ -190,7 +192,7 @@ func generateMenu() *tview.List {
 	if tvMenu == nil {
 		tvMenu = tview.NewList().
 			AddItem("Connect", "Create a connection to a new torrxfer server and transfer current files", 'c', connectServer).
-			AddItem("Add folder", "Add new folder to client's watchlist", 'a', nil).
+			AddItem("Add folder", "Add new folder to client's watchlist", 'a', addDirectory).
 			AddItem("Background", "Dismiss the UI and run in the background", 'b', nil).
 			AddItem("Configuration", "Change configuration for client", 's', settings).
 			AddItem("Quit", "Stop the application", 'q', func() {
@@ -351,6 +353,58 @@ func connectServer() {
 		tvMainGrid.RemoveItem(generateMenu())
 		tvMainGrid.AddItem(addServerForm, 1, 1, 1, 1, 0, 0, true)
 		tviewApp.SetFocus(addServerForm)
+	})
+}
+
+// Main thread only
+func addDirectory() {
+	log.Debug().Msg("Adding a file to the watchlist")
+	var (
+		addDirectoryForm    *tview.Form
+		directoryInputField *tview.InputField
+	)
+	const watchDirectoryLabel string = "Add directory:"
+	directoryInputField = tview.NewInputField().
+		SetLabel(watchDirectoryLabel).
+		SetFieldWidth(0).
+		SetDoneFunc(func(key tcell.Key) {
+			dirPath := addDirectoryForm.GetFormItemByLabel(watchDirectoryLabel).(*tview.InputField).GetText()
+			if _, err := os.Stat(dirPath); os.IsNotExist(err) {
+				updateUI(func() {
+					directoryInputField.SetBackgroundColor(tcell.ColorDarkRed)
+				})
+			}
+		})
+	addDirectoryForm = tview.NewForm().
+		SetFieldBackgroundColor(tcell.ColorDarkCyan).
+		SetButtonBackgroundColor(tcell.ColorDarkSlateGray).
+		AddFormItem(directoryInputField).
+		SetButtonsAlign(tview.AlignCenter).
+		AddButton("Quit", func() {
+			log.Debug().Msg("Quit adding directory")
+			updateUI(func() {
+				tvMainGrid.RemoveItem(addDirectoryForm)
+				tvMainGrid.AddItem(generateMenu(), 1, 1, 1, 1, 0, 0, true)
+				tviewApp.SetFocus(generateMenu())
+			})
+		}).
+		AddButton("Add", func() {
+			dirPath := addDirectoryForm.GetFormItemByLabel(watchDirectoryLabel).(*tview.InputField).GetText()
+			if err := client.WatchDirectory(dirPath); err != nil {
+				common.LogError(err, "Could not watch directory")
+			} else {
+				updateUI(func() {
+					tvMainGrid.RemoveItem(addDirectoryForm)
+					tvMainGrid.AddItem(generateMenu(), 1, 1, 1, 1, 0, 0, true)
+					tviewApp.SetFocus(generateMenu())
+				})
+			}
+		})
+	addDirectoryForm.SetTitle("Watch directory")
+	updateUI(func() {
+		tvMainGrid.RemoveItem(generateMenu())
+		tvMainGrid.AddItem(addDirectoryForm, 1, 1, 1, 1, 0, 0, true)
+		tviewApp.SetFocus(addDirectoryForm)
 	})
 }
 
