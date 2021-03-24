@@ -52,7 +52,7 @@ func ChangeLogger(logger io.Writer, shortLog bool) {
 	if logger == nil {
 		logger = os.Stdout
 	}
-	writer := zerolog.ConsoleWriter{Out: logger, TimeFormat: time.RFC1123, NoColor: true}
+	writer := zerolog.ConsoleWriter{Out: logger, TimeFormat: time.RFC1123}
 	if shortLog {
 		writer.FormatCaller = func(i interface{}) string {
 			return ""
@@ -67,5 +67,6 @@ func ChangeLogger(logger io.Writer, shortLog bool) {
 			return strings.ToUpper(fmt.Sprintf("| %s |", i))
 		}
 	}
-	log.Logger = log.With().Caller().Logger().Output(writer)
+	log.Logger = log.With().Caller().Stack().Logger().Output(writer)
+	zerolog.ErrorStackMarshaler
 }

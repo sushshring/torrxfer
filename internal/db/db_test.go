@@ -8,7 +8,7 @@ import (
 	"github.com/sushshring/torrxfer/pkg/crypto"
 )
 
-var kvDbTest *KvDb
+var kvDbTest *kvDb
 
 func TestInitDb(t *testing.T) {
 	const (

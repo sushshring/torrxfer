@@ -12,29 +12,38 @@ import (
 
 const threshold = 1000
 
-type KvDb struct {
+// KvDB is a simple file backed key value persistent store
+type KvDB interface {
+	Close()
+	Put(key, value string) error
+	Get(key string) (string, error)
+	Delete(key string) error
+	Has(key string) bool
+}
+
+type kvDb struct {
 	innerDb       *bitcask.Bitcask
-	calledChannel chan byte
+	calledChannel chan struct{}
 	channelMux    sync.Mutex
 }
 
-var kvDb *KvDb
+var singleton *kvDb
 var once sync.Once
 
 // GetDb Creates the database or initializes it from an existing file
-func GetDb(dbFileName string) (db *KvDb, err error) {
+func GetDb(dbFileName string) (db KvDB, err error) {
 	once.Do(func() {
-		kvDb, err = initDb(dbFileName)
+		singleton, err = initDb(dbFileName)
 		if err != nil {
 			log.Debug().Err(err).Msg("Could not init DB")
-			kvDb = nil
+			singleton = nil
 		}
 	})
-	db = kvDb
-	return db, nil
+	db = singleton
+	return
 }
 
-func initDb(dbFileName string) (*KvDb, error) {
+func initDb(dbFileName string) (*kvDb, error) {
 	tempDir := os.TempDir()
 	dbFilePath := filepath.Join(tempDir, dbFileName)
 	db, err := bitcask.Open(dbFilePath)
@@ -42,36 +51,34 @@ func initDb(dbFileName string) (*KvDb, error) {
 		log.Debug().Stack().Err(err).Msg("Failed to open db")
 		return nil, err
 	}
-	ret := new(KvDb)
-	ret.innerDb = db
-	ret.calledChannel = make(chan byte, 10)
-	ret.channelMux = sync.Mutex{}
+	ret := &kvDb{db, make(chan struct{}, 1000), sync.Mutex{}}
 	go func() {
 		calledCounter := 0
 		for {
-			ret.channelMux.Lock()
-			defer ret.channelMux.Unlock()
 			<-ret.calledChannel
 			calledCounter++
 			if calledCounter == threshold {
 				ret.innerDb.Merge()
+				calledCounter = 0
 			}
 		}
 	}()
 	return ret, nil
 }
 
-func (db *KvDb) called() {
-	db.calledChannel <- byte(0)
+func (db *kvDb) called() {
+	db.calledChannel <- struct{}{}
 }
 
-func (db *KvDb) Close() {
+func (db *kvDb) Close() {
+	defer db.called()
 	if err := db.innerDb.Close(); err != nil {
 		log.Debug().Stack().Err(err).Msg("Could not close DB")
 	}
 }
 
-func (db *KvDb) Put(key, value string) error {
+func (db *kvDb) Put(key, value string) error {
+	defer db.called()
 	hash, err := crypto.Hash(key)
 	if err != nil {
 		log.Debug().Stack().Err(err).Str("Key", key).Msg("Could not hash value")
@@ -84,7 +91,8 @@ func (db *KvDb) Put(key, value string) error {
 	return err
 }
 
-func (db *KvDb) Get(key string) (string, error) {
+func (db *kvDb) Get(key string) (string, error) {
+	defer db.called()
 	hash, err := crypto.Hash(key)
 	if err != nil {
 		log.Debug().Stack().Err(err).Str("Key", key).Msg("Could not hash value")
@@ -97,7 +105,8 @@ func (db *KvDb) Get(key string) (string, error) {
 	return string(value), err
 }
 
-func (db *KvDb) Delete(key string) error {
+func (db *kvDb) Delete(key string) error {
+	defer db.called()
 	hash, err := crypto.Hash(key)
 	if err != nil {
 		log.Debug().Stack().Err(err).Str("Key", key).Msg("Could not hash value")
@@ -110,6 +119,12 @@ func (db *KvDb) Delete(key string) error {
 	return err
 }
 
-func (db *KvDb) Has(key string) bool {
-	return db.innerDb.Has([]byte(key))
+func (db *kvDb) Has(key string) bool {
+	defer db.called()
+	hash, err := crypto.Hash(key)
+	if err != nil {
+		log.Debug().Stack().Err(err).Str("Key", key).Msg("Could not hash value")
+		return false
+	}
+	return db.innerDb.Has([]byte(hash))
 }

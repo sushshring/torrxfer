@@ -2,39 +2,36 @@ syntax = "proto3";
 
 option go_package = "github.com/sushshring/pkg/rpc";
 
+// RpcTorrxferServer should listen for requests from clients
+// A client can call QueryFile on the Server, which primes the server to accept a file on that connection
+// Any call to TransferFile requires a QueryFile called prior to starting the transfer
+// Each streamed bit of the file can be provided in chunks, so a partially transferred
+// file can be transferred to the server at a later time as long as QueryFile is called
 service RpcTorrxferServer {
     // Transfer a stream of bytes for a file and returns the summary of the transferred file
-    rpc TransferFile(TransferFileRequest) returns (FileSummary) {}
+    rpc TransferFile(stream TransferFileRequest) returns (Empty) {}
 
     // Query the status of the transferred file and return a summary of the file
-    rpc QueryFile(File) returns (FileSummary) {}
+    // If a file is partially transmitted, the FileSummary will include the amount of data already recorded
+    rpc QueryFile(File) returns (File) {}
 }
 
 // A TransferFileRequest contains all data needed to transfer a downloaded file
 message TransferFileRequest {
-    File File = 1;
-    bytes data = 2;
+    bytes data = 1;
+    uint32 size = 2;
+    uint64 offset = 3;
 }
 
-// A File represents a client's view of the file metadata being transferred
+// A File represents an RPC file object that both client and server understand
 message File {
     string name = 1;
-    string fullPath = 2;
     string dataHash = 3;
-    optional string mediaDirectory = 4;
-    optional uint64 createdTime = 5;
-    optional uint64 modifiedTime = 6;
-    optional uint64 size = 7;
-}
-
-// A FileSummary represents a client's view of the file metadata being transferred
-message FileSummary {
-    string name = 1;
-    string fullPath = 2;
-    string dataHash = 3;
-    optional string mediaDirectory = 4;
-    optional uint64 createdTime = 5;
-    optional uint64 modifiedTime = 6;
-    optional uint64 size = 7;
+    string mediaDirectory = 4;
+    uint64 createdTime = 5;
+    uint64 modifiedTime = 6;
+    uint64 size = 7;
     optional uint64 sizeOnDisk = 8;
 }
+
+message Empty {}

@@ -19,9 +19,10 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type RpcTorrxferServerClient interface {
 	// Transfer a stream of bytes for a file and returns the summary of the transferred file
-	TransferFile(ctx context.Context, in *TransferFileRequest, opts ...grpc.CallOption) (*FileSummary, error)
+	TransferFile(ctx context.Context, opts ...grpc.CallOption) (RpcTorrxferServer_TransferFileClient, error)
 	// Query the status of the transferred file and return a summary of the file
-	QueryFile(ctx context.Context, in *File, opts ...grpc.CallOption) (*FileSummary, error)
+	// If a file is partially transmitted, the FileSummary will include the amount of data already recorded
+	QueryFile(ctx context.Context, in *File, opts ...grpc.CallOption) (*File, error)
 }
 
 type rpcTorrxferServerClient struct {
@@ -32,17 +33,42 @@ func NewRpcTorrxferServerClient(cc grpc.ClientConnInterface) RpcTorrxferServerCl
 	return &rpcTorrxferServerClient{cc}
 }
 
-func (c *rpcTorrxferServerClient) TransferFile(ctx context.Context, in *TransferFileRequest, opts ...grpc.CallOption) (*FileSummary, error) {
-	out := new(FileSummary)
-	err := c.cc.Invoke(ctx, "/RpcTorrxferServer/TransferFile", in, out, opts...)
+func (c *rpcTorrxferServerClient) TransferFile(ctx context.Context, opts ...grpc.CallOption) (RpcTorrxferServer_TransferFileClient, error) {
+	stream, err := c.cc.NewStream(ctx, &RpcTorrxferServer_ServiceDesc.Streams[0], "/RpcTorrxferServer/TransferFile", opts...)
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
+	x := &rpcTorrxferServerTransferFileClient{stream}
+	return x, nil
 }
 
-func (c *rpcTorrxferServerClient) QueryFile(ctx context.Context, in *File, opts ...grpc.CallOption) (*FileSummary, error) {
-	out := new(FileSummary)
+type RpcTorrxferServer_TransferFileClient interface {
+	Send(*TransferFileRequest) error
+	CloseAndRecv() (*Empty, error)
+	grpc.ClientStream
+}
+
+type rpcTorrxferServerTransferFileClient struct {
+	grpc.ClientStream
+}
+
+func (x *rpcTorrxferServerTransferFileClient) Send(m *TransferFileRequest) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *rpcTorrxferServerTransferFileClient) CloseAndRecv() (*Empty, error) {
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	m := new(Empty)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *rpcTorrxferServerClient) QueryFile(ctx context.Context, in *File, opts ...grpc.CallOption) (*File, error) {
+	out := new(File)
 	err := c.cc.Invoke(ctx, "/RpcTorrxferServer/QueryFile", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -55,9 +81,10 @@ func (c *rpcTorrxferServerClient) QueryFile(ctx context.Context, in *File, opts 
 // for forward compatibility
 type RpcTorrxferServerServer interface {
 	// Transfer a stream of bytes for a file and returns the summary of the transferred file
-	TransferFile(context.Context, *TransferFileRequest) (*FileSummary, error)
+	TransferFile(RpcTorrxferServer_TransferFileServer) error
 	// Query the status of the transferred file and return a summary of the file
-	QueryFile(context.Context, *File) (*FileSummary, error)
+	// If a file is partially transmitted, the FileSummary will include the amount of data already recorded
+	QueryFile(context.Context, *File) (*File, error)
 	mustEmbedUnimplementedRpcTorrxferServerServer()
 }
 
@@ -65,10 +92,10 @@ type RpcTorrxferServerServer interface {
 type UnimplementedRpcTorrxferServerServer struct {
 }
 
-func (UnimplementedRpcTorrxferServerServer) TransferFile(context.Context, *TransferFileRequest) (*FileSummary, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method TransferFile not implemented")
+func (UnimplementedRpcTorrxferServerServer) TransferFile(RpcTorrxferServer_TransferFileServer) error {
+	return status.Errorf(codes.Unimplemented, "method TransferFile not implemented")
 }
-func (UnimplementedRpcTorrxferServerServer) QueryFile(context.Context, *File) (*FileSummary, error) {
+func (UnimplementedRpcTorrxferServerServer) QueryFile(context.Context, *File) (*File, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method QueryFile not implemented")
 }
 func (UnimplementedRpcTorrxferServerServer) mustEmbedUnimplementedRpcTorrxferServerServer() {}
@@ -84,22 +111,30 @@ func RegisterRpcTorrxferServerServer(s grpc.ServiceRegistrar, srv RpcTorrxferSer
 	s.RegisterService(&RpcTorrxferServer_ServiceDesc, srv)
 }
 
-func _RpcTorrxferServer_TransferFile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(TransferFileRequest)
-	if err := dec(in); err != nil {
+func _RpcTorrxferServer_TransferFile_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(RpcTorrxferServerServer).TransferFile(&rpcTorrxferServerTransferFileServer{stream})
+}
+
+type RpcTorrxferServer_TransferFileServer interface {
+	SendAndClose(*Empty) error
+	Recv() (*TransferFileRequest, error)
+	grpc.ServerStream
+}
+
+type rpcTorrxferServerTransferFileServer struct {
+	grpc.ServerStream
+}
+
+func (x *rpcTorrxferServerTransferFileServer) SendAndClose(m *Empty) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *rpcTorrxferServerTransferFileServer) Recv() (*TransferFileRequest, error) {
+	m := new(TransferFileRequest)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
-	if interceptor == nil {
-		return srv.(RpcTorrxferServerServer).TransferFile(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/RpcTorrxferServer/TransferFile",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(RpcTorrxferServerServer).TransferFile(ctx, req.(*TransferFileRequest))
-	}
-	return interceptor(ctx, in, info, handler)
+	return m, nil
 }
 
 func _RpcTorrxferServer_QueryFile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -128,14 +163,16 @@ var RpcTorrxferServer_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*RpcTorrxferServerServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "TransferFile",
-			Handler:    _RpcTorrxferServer_TransferFile_Handler,
-		},
-		{
 			MethodName: "QueryFile",
 			Handler:    _RpcTorrxferServer_QueryFile_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "TransferFile",
+			Handler:       _RpcTorrxferServer_TransferFile_Handler,
+			ClientStreams: true,
+		},
+	},
 	Metadata: "server.proto",
 }
