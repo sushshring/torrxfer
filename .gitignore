@@ -4,3 +4,4 @@ bin/client
 bin/torrxfer-client
 bin/torrxfer-server
 trial/config.json
+vendor/**/*

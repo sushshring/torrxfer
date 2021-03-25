@@ -68,5 +68,4 @@ func ChangeLogger(logger io.Writer, shortLog bool) {
 		}
 	}
 	log.Logger = log.With().Caller().Stack().Logger().Output(writer)
-	zerolog.ErrorStackMarshaler
 }
