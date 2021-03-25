@@ -282,7 +282,7 @@ func connectServer() {
 		log.Debug().Str("Address", textToCheck).Msg("Getting cert for website")
 		port, _ := strconv.ParseUint(addServerForm.GetFormItemByLabel(serverAddressLabel).(*tview.InputField).GetText(), 10, 32)
 		if _, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", textToCheck, port)); err != nil {
-			common.LogErrorStack("Could not resolve address")
+			common.LogErrorStack(err, "Could not resolve address")
 		} else {
 			resp, err := http.Head(fmt.Sprintf("https://%s", textToCheck))
 			if err != nil {

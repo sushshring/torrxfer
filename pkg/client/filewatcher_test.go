@@ -1,18 +1,53 @@
 package client
 
 import (
+	"errors"
 	"io/ioutil"
 	"os"
 	"path"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/golang-collections/collections/set"
+	"github.com/rs/zerolog/log"
+	"github.com/sushshring/torrxfer/internal/db"
+	"github.com/sushshring/torrxfer/pkg/common"
 )
+
+// Copy File watcher constructor for direct struct use
+func newFileWatcher(directory, mediaDirectoryRoot string) (*fileWatcher, error) {
+	// Verify media directory root is valid
+	if !common.IsSubdir(mediaDirectoryRoot, directory) {
+		return nil, errors.New("Invalid media directory root")
+	}
+	innerdb, err := db.GetDb(clientFileDbName)
+	if err != nil {
+		log.Debug().Stack().Err(err).Msg("Failed to init db")
+		return nil, err
+	}
+	filewatcher := &fileWatcher{
+		innerdb,
+		directory,
+		make(chan ClientFile, 10),
+		make(map[string]*time.Timer),
+		nil,
+		mediaDirectoryRoot,
+		sync.RWMutex{}}
+	// Run file watch logic thread
+	go func() {
+		defer close(filewatcher.channel)
+		filewatcher.watcherThread()
+		// Once filewatcher closes either due to error or the watcher being forcibly closed
+		// this returns and closes the filewatcher channel. Any listeners will then return as well
+	}()
+	return filewatcher, nil
+}
 
 func TestNotifyCurrentFiles(t *testing.T) {
 	// Setup file watcher
-	fileWatcher, err := NewFileWatcher(".", "/")
+	var fw *fileWatcher
+	fw, err := newFileWatcher(".", "/")
 	writeDuration = time.Second
 	if err != nil {
 		t.Error(err)
@@ -25,7 +60,7 @@ func TestNotifyCurrentFiles(t *testing.T) {
 	timer := time.NewTimer(10 * time.Second)
 	go func() {
 		<-timer.C
-		fileWatcher.Close()
+		fw.Close()
 	}()
 
 	// Let all files be added to the local db and
@@ -42,9 +77,9 @@ func TestNotifyCurrentFiles(t *testing.T) {
 			t.Logf("Added file: %s", path.Join(cwd, file.Name()))
 			fileSet.Insert(path.Join(cwd, file.Name()))
 		}
-		for file := range fileWatcher.RegisterForFileNotifications() {
+		for file := range fw.RegisterForFileNotifications() {
 			t.Logf("Got file: %s", file.Path)
-			fileWatcher.db.Delete(file.Path)
+			fw.db.Delete(file.Path)
 			if !fileSet.Has(file.Path) {
 				t.Errorf("Did not find file: %s", file.Path)
 			}
@@ -56,8 +91,9 @@ func TestNotifyCurrentFiles(t *testing.T) {
 
 func TestNotifyNewFile(t *testing.T) {
 	const testfileName = "testfile"
+	var fw *fileWatcher
 	// Setup file watcher
-	fileWatcher, err := NewFileWatcher(".", "/")
+	fw, err := newFileWatcher(".", "/")
 	writeDuration = time.Second
 	if err != nil {
 		t.Error(err)
@@ -71,7 +107,7 @@ func TestNotifyNewFile(t *testing.T) {
 	go func() {
 		<-timer.C
 		t.Log("Timer fired")
-		fileWatcher.Close()
+		fw.Close()
 	}()
 
 	go func() {
@@ -104,9 +140,9 @@ func TestNotifyNewFile(t *testing.T) {
 		}
 		// Except to find testfile but it shouldn't have been written yet
 		fileSet.Insert(path.Join(cwd, testfileName))
-		for file := range fileWatcher.RegisterForFileNotifications() {
+		for file := range fw.RegisterForFileNotifications() {
 			t.Logf("Got file: %s", file.Path)
-			fileWatcher.db.Delete(file.Path)
+			fw.db.Delete(file.Path)
 			if !fileSet.Has(file.Path) {
 				t.Errorf("Did not find file: %s", file.Path)
 			} else {
