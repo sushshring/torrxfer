@@ -1,0 +1,13 @@
+version: '3.4'
+
+services:
+  torrxfer-server:
+    image: sushshring/torrxfer-server
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    volumes:
+      - ./trial/transfer:/transfers
+    entrypoint: ["/bin/torrxfer-server", "--debug"]
+    ports:
+      - 9650:9650

@@ -33,7 +33,7 @@ func NewFile(filePath string) (*RPCFile, error) {
 	if err == nil {
 		hash, err = crypto.HashFile(filePath)
 		if err != nil {
-			common.ChangeLogger(os.Stderr, false)
+			common.AddLogger(os.Stderr, false)
 			log.Fatal().Err(err).Msg("Failed to hash file")
 			return nil, err
 		}

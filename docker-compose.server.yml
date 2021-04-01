@@ -1,0 +1,15 @@
+version: '3.4'
+
+services:
+  torrxfer-server:
+    image: sushshring/torrxfer-server
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    volumes:
+      - /Users/sushrutshringarputale/transfers:/transfers
+      - ./service.pem:/keys/cafile.pem
+      - ./service.key:/keys/keyfile.pem
+    entrypoint: ["/bin/torrxfer-server", "--tls", "--cafile=/keys/cafile.pem", "--keyfile=/keys/keyfile.pem"]
+    ports:
+      - 9650:9650

@@ -15,6 +15,7 @@ type WatchedDirectory struct {
 type ClientConfig struct {
 	Servers            []ServerConnectionConfig `json:"Servers"`
 	WatchedDirectories []WatchedDirectory       `json:"WatchedDirectories"`
+	DeleteOnComplete   bool                     `json:"DeleteFileOnComplete"`
 }
 
 type ServerConnectionConfig struct {

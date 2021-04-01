@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/sushshring/torrxfer/pkg/common"
 	"github.com/sushshring/torrxfer/pkg/net"
@@ -182,4 +183,7 @@ func (f *ClientFile) GenerateRpcFile() (*net.RPCFile, error) {
 	}
 	rpcFile.SetMediaPath(f.MediaPrefix)
 	return rpcFile, nil
+}
+func (f *ClientFile) MarshalZerologObject(e *zerolog.Event) {
+	e.Str("Path", f.Path).Str("Media Path Prefix", f.MediaPrefix).Uint64("Size", f.Size).Time("Transfer started at", f.TransferTime)
 }

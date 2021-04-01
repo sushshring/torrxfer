@@ -47,7 +47,7 @@ func newFileWatcher(directory, mediaDirectoryRoot string) (*fileWatcher, error) 
 func TestNotifyCurrentFiles(t *testing.T) {
 	// Setup file watcher
 	var fw *fileWatcher
-	fw, err := newFileWatcher(".", "/")
+	fw, err := newFileWatcher("./pkg", ".")
 	writeDuration = time.Second
 	if err != nil {
 		t.Error(err)
@@ -93,7 +93,7 @@ func TestNotifyNewFile(t *testing.T) {
 	const testfileName = "testfile"
 	var fw *fileWatcher
 	// Setup file watcher
-	fw, err := newFileWatcher(".", "/")
+	fw, err := newFileWatcher("./pkg", ".")
 	writeDuration = time.Second
 	if err != nil {
 		t.Error(err)
@@ -135,6 +135,9 @@ func TestNotifyNewFile(t *testing.T) {
 		fileSet := set.New()
 		cwd, _ := os.Getwd()
 		for _, file := range files {
+			if file.IsDir() {
+				continue
+			}
 			t.Logf("Added file: %s", path.Join(cwd, file.Name()))
 			fileSet.Insert(path.Join(cwd, file.Name()))
 		}

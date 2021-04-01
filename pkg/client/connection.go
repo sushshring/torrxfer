@@ -4,6 +4,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rs/zerolog"
 	"github.com/sushshring/torrxfer/pkg/net"
 )
 
@@ -31,7 +32,7 @@ type ServerNotification struct {
 	NotificationType ConnectionNotificationType
 	Error            error
 	Connection       *ServerConnection
-	sentFile         *ClientFile
+	SentFile         *ClientFile
 }
 
 type ServerConnection struct {
@@ -103,4 +104,9 @@ func (s *ServerConnection) GetFilesTransferred() (files []ClientFile) {
 		files = append(files, v)
 	}
 	return
+}
+
+// MarshalZerologObject implements the zerolog Object Marshaller for easy connection detail logging
+func (s *ServerConnection) MarshalZerologObject(e *zerolog.Event) {
+	e.Str("Address", s.GetAddress()).Uint32("Port", s.GetPort()).Uint64("Bytes transferred", s.GetBytesTransferred())
 }

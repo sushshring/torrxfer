@@ -5,3 +5,9 @@ bin/torrxfer-client
 bin/torrxfer-server
 trial/config.json
 vendor/**/*
+**/*.key
+**/*.crt
+**/*.cert
+**/*.srl
+**/*.pem
+**/*.csr

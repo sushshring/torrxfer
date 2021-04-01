@@ -72,9 +72,9 @@ func (c *torrxferClient) Run(config *os.File) error {
 	for notification := range c.RegisterForConnectionNotifications() {
 		if notification.Error != nil {
 			// Retry file transfer
-			c.fileStoredDbs[0].RemoveWatchedFile(notification.sentFile.Path)
+			c.fileStoredDbs[0].RemoveWatchedFile(notification.SentFile.Path)
 			// Touch the file to requeue a transfer
-			os.Chtimes(notification.sentFile.Path, time.Now(), time.Now())
+			os.Chtimes(notification.SentFile.Path, time.Now(), time.Now())
 		}
 		log.Info().
 			Str("Notification: ", ConnectionNotificationStrings[notification.NotificationType]).
@@ -235,7 +235,7 @@ func (client *torrxferClient) sendConnectionNotification(n ConnectionNotificatio
 		NotificationType: n,
 		Error:            nil,
 		Connection:       updatedServer,
-		sentFile:         sentFile,
+		SentFile:         sentFile,
 	}
 	if len(err) != 0 {
 		serverNotif.Error = err[0]

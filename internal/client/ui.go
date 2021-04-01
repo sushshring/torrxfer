@@ -164,7 +164,7 @@ func generateServerStatusUI(server *torrxfer.ServerConnection) tview.Primitive {
 func StartUI(c torrxfer.TorrxferClient) {
 	// Change the logging mechanism to write to the table instead of stdout
 	tableLogger = &LogTable{}
-	common.ChangeLogger(tableLogger, true)
+	common.AddLogger(tableLogger, true)
 
 	client = c
 	tvConnectionStatusElements = make([]tview.Primitive, 0)
