@@ -46,7 +46,7 @@ func main() {
 				bar := p.Add(int64(notification.SentFile.Size),
 					mpb.NewBarFiller("[=>-|"),
 					mpb.PrependDecorators(
-						decor.Name(fmt.Sprintf("Transferring file. Path: %s", notification.SentFile.Path))
+						decor.Name(fmt.Sprintf("Transferring file. Path: %s", notification.SentFile.Path)),
 						decor.CountersKibiByte("% .2f / % .2f"),
 					),
 					mpb.AppendDecorators(

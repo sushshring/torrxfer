@@ -21,6 +21,9 @@ require (
 	github.com/stretchr/testify v1.6.1 // indirect
 	github.com/vbauerster/mpb/v6 v6.0.3
 	gitlab.com/tslocum/cview v1.5.3
+	golang.org/x/lint v0.0.0-20201208152925-83fdc39ff7b5 // indirect
+	golang.org/x/tools v0.1.0 // indirect
 	google.golang.org/grpc v1.36.0
+	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.1.0 // indirect
 	google.golang.org/protobuf v1.26.0
 )
