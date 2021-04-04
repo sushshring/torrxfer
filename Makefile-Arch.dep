@@ -13,7 +13,7 @@ ifeq ($(OS),Windows_NT)
         endif
     endif
 else
-    UNAME_P := $(shell uname -m)
+    UNAME_P := -$(shell uname -m)
     ifeq ($(UNAME_P),x86_64)
         TORRXFER_ARCH = amd64
     endif
@@ -38,3 +38,4 @@ else
         endif
     endif
 endif
+

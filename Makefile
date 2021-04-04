@@ -9,7 +9,7 @@ PC := $(HOME)/.local/bin/protoc
 PREFIX := $(PWD)
 
 PROTO_IN = ./proto
-PROTOC_DIR = protoc-3.15.5-$(TORRXFER_OS)-$(UNAME_P)
+PROTOC_DIR = protoc-3.15.5-$(TORRXFER_OS)$(UNAME_P)
 PROTO_SRC = $(PROTO_IN)/server.proto \
 
 PROTO_OUT = rpc
@@ -51,7 +51,7 @@ lint:
 
 PB_REL = "https://github.com/protocolbuffers/protobuf/releases"
 protoc:
-	curl -LO $(PB_REL)/download/v3.15.5/protoc-3.15.5-$(TORRXFER_OS)-$(UNAME_P).zip
+	curl -LO $(PB_REL)/download/v3.15.5/$(PROTOC_DIR).zip
 	unzip -u  $(PROTOC_DIR).zip -d $(HOME)/.local
 
 test:
