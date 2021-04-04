@@ -179,27 +179,14 @@ func TestNotifyNewFile(t *testing.T) {
 
 	// Let all files be added to the local db and
 	go func() {
-		fileSet := set.New()
-		// Expect to find testfile but it shouldn't have been written yet
-		p, err := common.CleanPath(path.Join(testWatchDirPath, testfileName))
-		if err != nil {
-			t.Error("Could not clean path", err)
-		}
-		fileSet.Insert(p)
 		for file := range fw.RegisterForFileNotifications() {
 			t.Logf("Got file: %s", file.Path)
-			fw.db.Delete(file.Path)
-			if !fileSet.Has(file.Path) {
-				t.Errorf("Did not find file: %s", file.Path)
-			} else {
-				fileSet.Remove(file.Path)
+			testFilePath := filepath.Join(testWatchDirPath, testfileName)
+			if p, err := common.CleanPath(testFilePath); err != nil {
+				t.Error(err)
+			} else if p != file.Path {
+				t.Errorf("Expected path: %s, got file path: %s", p, file.Path)
 			}
-		}
-		if fileSet.Len() != 0 {
-			fileSet.Do(func(element interface{}) {
-				t.Logf("File in set: %s", element)
-			})
-			t.Errorf("Did not find all files")
 		}
 		waitC <- struct{}{}
 	}()
