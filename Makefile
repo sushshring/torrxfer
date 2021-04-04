@@ -26,7 +26,7 @@ GO_TOOLS = golang.org/x/lint/golint \
 
 all: deps lint torrxfer-server torrxfer-client
 
-deps: proto vendor linter
+deps: tools proto vendor
 
 proto: protoc $(PROTO_SRC)
 	mkdir -p $(PROTO_OUT)
@@ -42,8 +42,8 @@ vendor:
 	$(TORRXFER_OSARCH) go mod vendor
 .PHONY: vendor
 
-linter:
-	$(TORRXFER_OSARCH) go get -u 
+tools:
+	$(TORRXFER_OSARCH) go get -u $(GO_TOOLS) $(GO_DEPS)
 
 lint:
 	golint $(TEST_SRC)
