@@ -5,7 +5,7 @@ LDFLAGS := -ldflags="-s -w"
 DEPLOY := bin
 GC := go build
 TORRXFER_OSARCH := GOOS=$(TORRXFER_KRNL) GOARCH=$(TORRXFER_ARCH)
-PC := $(HOME)/.local/bin/protoc
+PC := 	/tmp/build/bin/protoc
 PREFIX := $(PWD)
 
 PROTO_IN = ./proto
@@ -49,10 +49,11 @@ lint:
 	golint $(TEST_SRC)
 .PHONY: lint
 
-PB_REL = "https://github.com/protocolbuffers/protobuf/releases"
+PB_REL = https://github.com/protocolbuffers/protobuf/releases
 protoc:
 	curl -LO $(PB_REL)/download/v3.15.5/$(PROTOC_DIR).zip
-	unzip -u  $(PROTOC_DIR).zip -d $(HOME)/.local
+	unzip -o  $(PROTOC_DIR).zip -d /tmp/build
+	chmod +x /tmp/build/bin/protoc
 
 test:
 	$(TORRXFER_OSARCH) go test $(TEST_SRC)
@@ -63,5 +64,5 @@ clean:
 	rm -rf $(DEPLOY)
 	rm -rf $(PROTO_OUT)
 	rm -rf $(PROTOC_DIR).zip
-	rm -rf $(HOME)/.local/$(PROTOC_DIR)
+	rm -rf /tmp/build/$(PROTOC_DIR)
 	rm -rf vendor/
