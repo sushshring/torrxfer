@@ -19,24 +19,26 @@ import (
 const testFileDbName = "tfdb.dat"
 const testWatchDir = "testdir"
 
-func setup() error {
+func setup(createFiles bool) error {
 	tmpDir := os.TempDir()
 	testWatchDirPath := filepath.Join(tmpDir, testWatchDir)
 	err := os.MkdirAll(testWatchDirPath, 0777)
 	if err != nil {
 		return err
 	}
-	_, err = os.CreateTemp(testWatchDirPath, "NewFile")
-	if err != nil {
-		return err
-	}
-	_, err = os.CreateTemp(testWatchDirPath, "NewFile")
-	if err != nil {
-		return err
-	}
-	_, err = os.CreateTemp(testWatchDirPath, "NewFile")
-	if err != nil {
-		return err
+	if createFiles {
+		_, err = os.CreateTemp(testWatchDirPath, "NewFile")
+		if err != nil {
+			return err
+		}
+		_, err = os.CreateTemp(testWatchDirPath, "NewFile")
+		if err != nil {
+			return err
+		}
+		_, err = os.CreateTemp(testWatchDirPath, "NewFile")
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -79,14 +81,13 @@ func newFileWatcher(directory, mediaDirectoryRoot string) (*fileWatcher, error) 
 
 func TestNotifyCurrentFiles(t *testing.T) {
 	// Setup file watcher
-	err := setup()
+	err := setup(true)
 	if err != nil {
 		t.Error(err)
 	}
 	t.Cleanup(cleanup)
 	testWatchDirPath := filepath.Join(os.TempDir(), testWatchDir)
 	fw, err := newFileWatcher(filepath.Join(os.TempDir(), testWatchDir), os.TempDir())
-	writeDuration = time.Second
 	if err != nil {
 		t.Error(err)
 		return
@@ -95,7 +96,7 @@ func TestNotifyCurrentFiles(t *testing.T) {
 	defer close(waitC)
 
 	// Test timeout 5 minutes
-	timer := time.NewTimer(1 * time.Minute)
+	timer := time.NewTimer(15 * time.Second)
 	go func() {
 		<-timer.C
 		fw.Close()
@@ -115,7 +116,11 @@ func TestNotifyCurrentFiles(t *testing.T) {
 				continue
 			}
 			t.Logf("Added file: %s", path.Join(testWatchDirPath, file.Name()))
-			fileSet.Insert(path.Join(testWatchDirPath, file.Name()))
+			path, err := common.CleanPath(path.Join(testWatchDirPath, file.Name()))
+			if err != nil {
+				t.Error(err)
+			}
+			fileSet.Insert(path)
 		}
 		for file := range fw.RegisterForFileNotifications() {
 			t.Logf("Got file: %s", file.Path)
@@ -138,14 +143,13 @@ func TestNotifyCurrentFiles(t *testing.T) {
 
 func TestNotifyNewFile(t *testing.T) {
 	const testfileName = "testfile"
-	err := setup()
+	err := setup(false)
 	if err != nil {
 		t.Error(err)
 	}
 	t.Cleanup(cleanup)
 	testWatchDirPath := filepath.Join(os.TempDir(), testWatchDir)
 	fw, err := newFileWatcher(filepath.Join(os.TempDir(), testWatchDir), os.TempDir())
-	writeDuration = time.Second
 	if err != nil {
 		t.Error(err)
 		return
@@ -175,22 +179,10 @@ func TestNotifyNewFile(t *testing.T) {
 
 	// Let all files be added to the local db and
 	go func() {
-		files, err := ioutil.ReadDir(testWatchDirPath)
-		if err != nil {
-			t.Error(err)
-			waitC <- struct{}{}
-			return
-		}
 		fileSet := set.New()
-		for _, file := range files {
-			if file.IsDir() {
-				continue
-			}
-			t.Logf("Added file: %s", path.Join(testWatchDirPath, file.Name()))
-			fileSet.Insert(path.Join(testWatchDirPath, file.Name()))
-		}
 		// Expect to find testfile but it shouldn't have been written yet
-		fileSet.Insert(path.Join(testWatchDirPath, testfileName))
+		p, _ := common.CleanPath(path.Join(testWatchDirPath, testfileName))
+		fileSet.Insert(p)
 		for file := range fw.RegisterForFileNotifications() {
 			t.Logf("Got file: %s", file.Path)
 			fw.db.Delete(file.Path)
@@ -201,6 +193,9 @@ func TestNotifyNewFile(t *testing.T) {
 			}
 		}
 		if fileSet.Len() != 0 {
+			fileSet.Do(func(element interface{}) {
+				t.Logf("File in set: %s", element)
+			})
 			t.Errorf("Did not find all files")
 		}
 		waitC <- struct{}{}
