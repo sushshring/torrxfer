@@ -1,9 +1,8 @@
 #build stage
-FROM golang:alpine AS builder
-RUN apk add --no-cache git alpine-sdk
+FROM golang:1.16 AS builder
+RUN apt update && apt install -y unzip
 COPY . /src
 WORKDIR /src
-RUN make vendor
 RUN make
 
 #Client builder
