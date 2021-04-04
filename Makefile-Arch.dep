@@ -1,0 +1,41 @@
+ifeq ($(OS),Windows_NT)
+    TORRXFER_KRNL = windows
+    ifeq ($(PROCESSOR_ARCHITEW6432),AMD64)
+        TORRXFER_ARCH = amd64
+    else
+        ifeq ($(PROCESSOR_ARCHITECTURE),AMD64)
+            TORRXFER_OS = win64
+            TORRXFER_ARCH = amd64
+        endif
+        ifeq ($(PROCESSOR_ARCHITECTURE),x86)
+            TORRXFER_OS = win32
+            TORRXFER_ARCH  = 386
+        endif
+    endif
+else
+    UNAME_P := -$(shell uname -m)
+    ifeq ($(UNAME_P),x86_64)
+        TORRXFER_ARCH = amd64
+    endif
+    ifneq ($(filter %86,$(UNAME_P)),)
+        TORRXFER_ARCH = 386
+    endif
+    ifneq ($(filter arm%,$(UNAME_P)),)
+        TORRXFER_ARCH = arm
+    endif
+    UNAME_S := $(shell uname -s)
+    ifeq ($(UNAME_S),Linux)
+        TORRXFER_KRNL = linux
+        TORRXFER_OS = linux
+    endif
+    ifeq ($(UNAME_S),Darwin)
+        TORRXFER_KRNL = darwin
+        TORRXFER_OS = osx
+        ifneq ($(filter arm%,$(UNAME_P)),)
+            TORRXFER_ARCH = arm
+        else
+            TORRXFER_ARCH = amd64
+        endif
+    endif
+endif
+

@@ -29,6 +29,7 @@ func HashFile(filepath string) (string, error) {
 	return fmt.Sprintf("%x", sum), nil
 }
 
+// Hash hashes the provided key
 func Hash(key string) (string, error) {
 	hash := sha256.New()
 	if _, err := io.Copy(hash, strings.NewReader(key)); err != nil {

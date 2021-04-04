@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/sushshring/torrxfer/pkg/common"
 	"github.com/sushshring/torrxfer/pkg/net"
@@ -16,8 +17,8 @@ import (
 
 const delimiter string = "*?*"
 
-// ClientFile in the client package represents the clients view of a watched file
-type ClientFile struct {
+// File in the client package represents the clients view of a watched file
+type File struct {
 	Path         string
 	MediaPrefix  string
 	Size         uint64
@@ -33,7 +34,7 @@ type ClientFile struct {
 // If the provided path is /home/user/foo/bar/file.txt and the directory structure under foo should be
 // maintained on the server, mediaDirectoryRoot should be /home/user/foo. This will tell the server that
 // under its own media folder it should create the directory bar and store file.txt there.
-func NewClientFile(path, mediaDirectoryRoot string) (*ClientFile, error) {
+func NewClientFile(path, mediaDirectoryRoot string) (*File, error) {
 	mediaPrefix, err := generateMediaPrefix(mediaDirectoryRoot, path)
 	if err != nil {
 		log.Info().Err(err).Msg("Could not generate media prefix. Setting to watched directory")
@@ -51,7 +52,7 @@ func NewClientFile(path, mediaDirectoryRoot string) (*ClientFile, error) {
 		return nil, err
 	}
 
-	clientFile := &ClientFile{
+	clientFile := &File{
 		Path:         absolutePath,
 		MediaPrefix:  mediaPrefix,
 		Size:         uint64(stat.Size()),
@@ -73,13 +74,13 @@ func generateMediaPrefix(mediaDirectoryRoot string, path string) (string, error)
 	}
 	fileDir := filepath.Dir(absoluteFilePath)
 	if !strings.HasPrefix(fileDir, absoluteMediaDirectory) {
-		err := errors.New("Media directory root is not part of the file path")
+		err := errors.New("media directory root is not part of the file path")
 		return "", err
 	}
 	return strings.TrimPrefix(fileDir, absoluteMediaDirectory), nil
 }
 
-func (f *ClientFile) getStrings() (stringReprs []string) {
+func (f *File) getStrings() (stringReprs []string) {
 	stringReprs = make([]string, 0)
 	modifiedTime, err := f.ModifiedTime.MarshalText()
 	if err != nil {
@@ -115,11 +116,11 @@ func (f *ClientFile) getStrings() (stringReprs []string) {
 }
 
 // MarshalText converts the clientFile representation to a utf encoded byte array
-func (f *ClientFile) MarshalText() (text []byte, err error) {
+func (f *File) MarshalText() (text []byte, err error) {
 	err = nil
 	bytes := f.getStrings()
 	if bytes == nil {
-		err = errors.New("Failed to marshal file object")
+		err = errors.New("failed to marshal file object")
 		return nil, err
 	}
 	var marshalSize int
@@ -136,7 +137,7 @@ func (f *ClientFile) MarshalText() (text []byte, err error) {
 }
 
 // UnmarshalText takes a utf encoded byte array and builds a ClientFile object from it
-func (f *ClientFile) UnmarshalText(text []byte) error {
+func (f *File) UnmarshalText(text []byte) error {
 	var modifiedTime, watchTime, transferTime string
 	var size uint64
 	textString := string(text)
@@ -175,11 +176,17 @@ func (f *ClientFile) UnmarshalText(text []byte) error {
 	return nil
 }
 
-func (f *ClientFile) GenerateRpcFile() (*net.RPCFile, error) {
+// GenerateRPCFile creates an RPCFile representation from the current file
+func (f *File) GenerateRPCFile() (*net.RPCFile, error) {
 	rpcFile, err := net.NewFile(f.Path)
 	if err != nil {
 		return nil, err
 	}
 	rpcFile.SetMediaPath(f.MediaPrefix)
 	return rpcFile, nil
+}
+
+// MarshalZerologObject adds the file details to the current zerolog event
+func (f *File) MarshalZerologObject(e *zerolog.Event) {
+	e.Str("Path", f.Path).Str("Media Path Prefix", f.MediaPrefix).Uint64("Size", f.Size).Time("Transfer started at", f.TransferTime)
 }

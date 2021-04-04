@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
+// ITorrxferServer Server interface representation for client
 type ITorrxferServer interface {
 	QueryFunction(clientID string, file *RPCFile) (*RPCFile, error)
 	TransferFunction(clientID string, fileBytes []byte, blockSize uint32, currentOffset uint64) error
@@ -18,20 +19,22 @@ type ITorrxferServer interface {
 	Close(clientID string)
 }
 
-type RpcTorrxferServer struct {
+// RPCTorrxferServer wrapper around grpc server
+type RPCTorrxferServer struct {
 	pb.UnimplementedRpcTorrxferServerServer
 	server ITorrxferServer
 }
 
-func NewRpcTorrxferServer(torrxferServer ITorrxferServer) (server *RpcTorrxferServer) {
-	server = &RpcTorrxferServer{
+// NewRPCTorrxferServer creates a new torrxfer rpc server
+func NewRPCTorrxferServer(torrxferServer ITorrxferServer) (server *RPCTorrxferServer) {
+	server = &RPCTorrxferServer{
 		UnimplementedRpcTorrxferServerServer: pb.UnimplementedRpcTorrxferServerServer{},
 		server:                               torrxferServer,
 	}
 	return
 }
 
-func (*RpcTorrxferServer) validateIncomingRequest(ctx context.Context) (clientID string, err error) {
+func (*RPCTorrxferServer) validateIncomingRequest(ctx context.Context) (clientID string, err error) {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
 		err := errors.New("Failed to get file metadata. Invalid argument")
@@ -49,7 +52,8 @@ func (*RpcTorrxferServer) validateIncomingRequest(ctx context.Context) (clientID
 	return
 }
 
-func (s *RpcTorrxferServer) TransferFile(stream pb.RpcTorrxferServer_TransferFileServer) error {
+// TransferFile wrapper around gRPC TransferFile. Called by gRPC, should not be called directly
+func (s *RPCTorrxferServer) TransferFile(stream pb.RpcTorrxferServer_TransferFileServer) error {
 	clientID, err := s.validateIncomingRequest(stream.Context())
 	if err != nil {
 		return err
@@ -86,7 +90,8 @@ func (s *RpcTorrxferServer) TransferFile(stream pb.RpcTorrxferServer_TransferFil
 	}
 }
 
-func (s *RpcTorrxferServer) QueryFile(ctx context.Context, file *pb.File) (*pb.File, error) {
+// QueryFile wrapper around gRPC query file. Called by gRPC, should not be called directly
+func (s *RPCTorrxferServer) QueryFile(ctx context.Context, file *pb.File) (*pb.File, error) {
 	log.Debug().Str("File name", file.Name).Msg("Received file transfer request")
 	clientID, err := s.validateIncomingRequest(ctx)
 	if err != nil {

@@ -15,7 +15,8 @@ import (
 
 const delimiter string = "*?*"
 
-type ServerFile struct {
+// File server representation of a file
+type File struct {
 	fullPath     string
 	mediaPrefix  string
 	size         uint64
@@ -30,7 +31,7 @@ type ServerFile struct {
 	mux          fslock.Lock
 }
 
-func (f *ServerFile) getStrings() (stringReprs []string) {
+func (f *File) getStrings() (stringReprs []string) {
 	stringReprs = make([]string, 0)
 	var creationTime []byte
 	var err error
@@ -60,7 +61,7 @@ func (f *ServerFile) getStrings() (stringReprs []string) {
 }
 
 // MarshalText converts the clientFile representation to a utf encoded byte array
-func (f *ServerFile) MarshalText() (text []byte, err error) {
+func (f *File) MarshalText() (text []byte, err error) {
 	err = nil
 	stringRepr := f.getStrings()
 	if stringRepr == nil {
@@ -81,7 +82,7 @@ func (f *ServerFile) MarshalText() (text []byte, err error) {
 }
 
 // UnmarshalText takes a utf encoded byte array and builds a ClientFile object from it
-func (f *ServerFile) UnmarshalText(text []byte) error {
+func (f *File) UnmarshalText(text []byte) error {
 	var modifiedTime, creationTime string
 	var size, currentSize uint64
 	textString := string(text)
@@ -117,7 +118,8 @@ func (f *ServerFile) UnmarshalText(text []byte) error {
 	return nil
 }
 
-func (f *ServerFile) GenerateRpcFile() (*net.RPCFile, error) {
+// GenerateRPCFile returns common RPC representation of a server file
+func (f *File) GenerateRPCFile() (*net.RPCFile, error) {
 	rpcFile, err := net.NewFile(f.fullPath)
 	if err != nil {
 		return nil, err

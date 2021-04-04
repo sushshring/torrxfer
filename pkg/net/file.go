@@ -33,7 +33,7 @@ func NewFile(filePath string) (*RPCFile, error) {
 	if err == nil {
 		hash, err = crypto.HashFile(filePath)
 		if err != nil {
-			common.ChangeLogger(os.Stderr, false)
+			common.AddLogger(os.Stderr, false)
 			log.Fatal().Err(err).Msg("Failed to hash file")
 			return nil, err
 		}
@@ -55,6 +55,7 @@ func NewFile(filePath string) (*RPCFile, error) {
 	return file, nil
 }
 
+// NewFileFromGrpc returns a RPCFile from a gRPC wire file object
 func NewFileFromGrpc(grpcFile *pb.File) *RPCFile {
 	return &RPCFile{grpcFile}
 }
@@ -70,14 +71,17 @@ func (f *RPCFile) SetMediaPath(mediaDirectory string) error {
 	return nil
 }
 
+// GetFileName file name
 func (f *RPCFile) GetFileName() string {
 	return f.file.Name
 }
 
+// GetSize size
 func (f *RPCFile) GetSize() uint64 {
 	return f.file.Size
 }
 
+// GetRemoteSize returns the size of the file on the server
 func (f *RPCFile) GetRemoteSize() uint64 {
 	if f.file.SizeOnDisk != nil {
 		return *f.file.SizeOnDisk
@@ -85,18 +89,22 @@ func (f *RPCFile) GetRemoteSize() uint64 {
 	return 0
 }
 
+// GetDataHash data hash
 func (f *RPCFile) GetDataHash() string {
 	return f.file.DataHash
 }
 
+// GetCreationTime creation time
 func (f *RPCFile) GetCreationTime() time.Time {
 	return time.Unix(int64(f.file.CreatedTime), 0)
 }
 
+// GetModifiedTime modified time
 func (f *RPCFile) GetModifiedTime() time.Time {
 	return time.Unix(int64(f.file.ModifiedTime), 0)
 }
 
+// GetMediaPath media root directory
 func (f *RPCFile) GetMediaPath() string {
 	return f.file.MediaDirectory
 }

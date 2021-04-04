@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	badger "github.com/dgraph-io/badger/v3"
 	"github.com/sushshring/torrxfer/pkg/crypto"
 )
 
@@ -12,7 +13,7 @@ var kvDbTest *kvDb
 
 func TestInitDb(t *testing.T) {
 	const (
-		dbFileName string = "testfile"
+		dbFileName string = "testDB"
 	)
 	var err error
 	kvDbTest, err = initDb(dbFileName)
@@ -20,7 +21,7 @@ func TestInitDb(t *testing.T) {
 		t.Error(err)
 		return
 	}
-	t.Logf("Created Kvdb: %s", kvDbTest.innerDb.Path())
+	t.Logf("Created Kvdb: %s", kvDbTest.innerDb.Opts().Dir)
 
 	// Validation
 	tempdir := os.TempDir()
@@ -47,9 +48,13 @@ func TestPut(t *testing.T) {
 		t.Error(err)
 		return
 	}
-	if !kvDbTest.innerDb.Has([]byte(hash)) {
-		t.Errorf("Key not found: %s", hash)
-	}
+	kvDbTest.innerDb.View(func(txn *badger.Txn) error {
+		_, err := txn.Get([]byte(hash))
+		if err != nil {
+			t.Errorf("Key not found: %s", hash)
+		}
+		return nil
+	})
 }
 
 func TestGet(t *testing.T) {

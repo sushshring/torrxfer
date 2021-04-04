@@ -1,6 +1,15 @@
-.vscode/launch.json
-.vscode/spellright.dict
 bin/client
 bin/torrxfer-client
 bin/torrxfer-server
 trial/config.json
+vendor/**/*
+**/*.key
+**/*.crt
+**/*.cert
+**/*.srl
+**/*.pem
+**/*.csr
+.DS_Store
+rpc/
+protoc-*.zip
+.vscode/

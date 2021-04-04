@@ -60,9 +60,8 @@ func TestVerifyCert(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 		return
-	} else {
-		certData = resp.TLS.PeerCertificates[0]
 	}
+	certData = resp.TLS.PeerCertificates[0]
 
 	valid, cert, err := VerifyCert(certFile, website)
 	if err != nil {

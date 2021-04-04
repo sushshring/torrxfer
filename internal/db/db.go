@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/prologic/bitcask"
+	badger "github.com/dgraph-io/badger/v3"
 	"github.com/rs/zerolog/log"
 	"github.com/sushshring/torrxfer/pkg/crypto"
 )
@@ -22,7 +22,7 @@ type KvDB interface {
 }
 
 type kvDb struct {
-	innerDb       *bitcask.Bitcask
+	innerDb       *badger.DB
 	calledChannel chan struct{}
 	channelMux    sync.Mutex
 }
@@ -46,7 +46,7 @@ func GetDb(dbFileName string) (db KvDB, err error) {
 func initDb(dbFileName string) (*kvDb, error) {
 	tempDir := os.TempDir()
 	dbFilePath := filepath.Join(tempDir, dbFileName)
-	db, err := bitcask.Open(dbFilePath)
+	db, err := badger.Open(badger.DefaultOptions(dbFilePath))
 	if err != nil {
 		log.Debug().Stack().Err(err).Msg("Failed to open db")
 		return nil, err
@@ -54,11 +54,11 @@ func initDb(dbFileName string) (*kvDb, error) {
 	ret := &kvDb{db, make(chan struct{}, 1000), sync.Mutex{}}
 	go func() {
 		calledCounter := 0
-		for {
-			<-ret.calledChannel
+		for range ret.calledChannel {
+			ret.channelMux.Lock()
 			calledCounter++
 			if calledCounter == threshold {
-				ret.innerDb.Merge()
+				ret.innerDb.RunValueLogGC(0.5)
 				calledCounter = 0
 			}
 		}
@@ -84,7 +84,9 @@ func (db *kvDb) Put(key, value string) error {
 		log.Debug().Stack().Err(err).Str("Key", key).Msg("Could not hash value")
 		return err
 	}
-	err = db.innerDb.Put([]byte(hash), []byte(value))
+	err = db.innerDb.Update(func(txn *badger.Txn) error {
+		return txn.Set([]byte(hash), []byte(value))
+	})
 	if err != nil {
 		log.Debug().Stack().Err(err).Msg("Put failed")
 	}
@@ -98,7 +100,19 @@ func (db *kvDb) Get(key string) (string, error) {
 		log.Debug().Stack().Err(err).Str("Key", key).Msg("Could not hash value")
 		return "", err
 	}
-	value, err := db.innerDb.Get([]byte(hash))
+	var value []byte
+	err = db.innerDb.View(func(txn *badger.Txn) error {
+		item, err := txn.Get([]byte(hash))
+		if err != nil {
+			return err
+		}
+		val, err := item.ValueCopy(nil)
+		if err != nil {
+			return err
+		}
+		value = append(value, val...)
+		return nil
+	})
 	if err != nil {
 		log.Debug().Stack().Err(err).Msg("Get failed")
 	}
@@ -112,19 +126,29 @@ func (db *kvDb) Delete(key string) error {
 		log.Debug().Stack().Err(err).Str("Key", key).Msg("Could not hash value")
 		return err
 	}
-	err = db.innerDb.Delete([]byte(hash))
+	err = db.innerDb.Update(func(txn *badger.Txn) error {
+		return txn.Delete([]byte(hash))
+	})
 	if err != nil {
 		log.Debug().Stack().Err(err).Msg("Delete failed")
 	}
 	return err
 }
 
-func (db *kvDb) Has(key string) bool {
+func (db *kvDb) Has(key string) (has bool) {
 	defer db.called()
+	has = false
 	hash, err := crypto.Hash(key)
 	if err != nil {
 		log.Debug().Stack().Err(err).Str("Key", key).Msg("Could not hash value")
-		return false
+		return
 	}
-	return db.innerDb.Has([]byte(hash))
+	db.innerDb.View(func(txn *badger.Txn) error {
+		_, err := txn.Get([]byte(hash))
+		if err == nil {
+			has = true
+		}
+		return nil
+	})
+	return
 }

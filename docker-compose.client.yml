@@ -1,0 +1,11 @@
+version: '3.4'
+
+services:
+  torrxfer-client:
+    image: sushshring/torrxfer-client
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    volumes:
+      - ./trial/config.json:/config/client.json
+      - ./trial/watch:/transferwatch

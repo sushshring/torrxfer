@@ -72,9 +72,9 @@ func (c *torrxferClient) Run(config *os.File) error {
 	for notification := range c.RegisterForConnectionNotifications() {
 		if notification.Error != nil {
 			// Retry file transfer
-			c.fileStoredDbs[0].RemoveWatchedFile(notification.sentFile.Path)
+			c.fileStoredDbs[0].RemoveWatchedFile(notification.SentFile.Path)
 			// Touch the file to requeue a transfer
-			os.Chtimes(notification.sentFile.Path, time.Now(), time.Now())
+			os.Chtimes(notification.SentFile.Path, time.Now(), time.Now())
 		}
 		log.Info().
 			Str("Notification: ", ConnectionNotificationStrings[notification.NotificationType]).
@@ -89,7 +89,7 @@ func (c *torrxferClient) Run(config *os.File) error {
 // Currently the client does not support retroactively sending watched files to a new server connection
 // If a new server connection is made, it will only get updates for files that are created or written to
 // after the connection starts
-func (client *torrxferClient) WatchDirectory(dirname, mediaDirectoryRoot string) error {
+func (c *torrxferClient) WatchDirectory(dirname, mediaDirectoryRoot string) error {
 	log.Debug().Str("Adding directory", dirname).Send()
 	fileWatcher, err := NewFileWatcher(dirname, mediaDirectoryRoot)
 	if err != nil {
@@ -97,15 +97,15 @@ func (client *torrxferClient) WatchDirectory(dirname, mediaDirectoryRoot string)
 		return err
 	}
 	func() {
-		client.Lock()
-		defer client.Unlock()
-		client.fileStoredDbs = append(client.fileStoredDbs, fileWatcher)
+		c.Lock()
+		defer c.Unlock()
+		c.fileStoredDbs = append(c.fileStoredDbs, fileWatcher)
 	}()
 	// Start listening for files to be transferred
 	go func() {
 		for file := range fileWatcher.RegisterForFileNotifications() {
 			log.Info().Str("Name", file.Path).Msg("Attempting to transfer file.")
-			if err := client.transferToServers(file); err != nil {
+			if err := c.transferToServers(file); err != nil {
 				log.Debug().Err(err).Msg("File transfer to servers failed")
 				// Since file transfer failed, remove this from the DB so that a transfer is attempted at next run
 				fileWatcher.RemoveWatchedFile(file.Path)
@@ -118,7 +118,7 @@ func (client *torrxferClient) WatchDirectory(dirname, mediaDirectoryRoot string)
 }
 
 // ConnectServer creates a connection to the server provided
-func (client *torrxferClient) ConnectServer(server common.ServerConnectionConfig) (*ServerConnection, error) {
+func (c *torrxferClient) ConnectServer(server common.ServerConnectionConfig) (*ServerConnection, error) {
 	// Connect to the server
 	rpc, err := net.NewTorrxferServerConnection(server)
 	if err != nil {
@@ -126,24 +126,24 @@ func (client *torrxferClient) ConnectServer(server common.ServerConnectionConfig
 		return nil, err
 	}
 
-	serverConnection := newServerConnection(uint16(len(client.connections)), server.Address, server.Port, rpc)
+	serverConnection := newServerConnection(uint16(len(c.connections)), server.Address, server.Port, rpc)
 
 	return serverConnection, nil
 }
 
 // RegisterForConnectionNotifications is a client method that notifies the caller on changes to all active connections
-func (client *torrxferClient) RegisterForConnectionNotifications() <-chan ServerNotification {
-	return client.notificationChannel
+func (c *torrxferClient) RegisterForConnectionNotifications() <-chan ServerNotification {
+	return c.notificationChannel
 }
 
 // transferToServers reads a provided file and transfers it to the connected servers
-func (client *torrxferClient) transferToServers(file ClientFile) error {
+func (c *torrxferClient) transferToServers(file File) error {
 	// Send file to all connected servers
-	client.RLock()
-	defer client.RUnlock()
+	c.RLock()
+	defer c.RUnlock()
 
 	fileuuid := uuid.New()
-	for _, server := range client.connections {
+	for _, server := range c.connections {
 		log.Info().Str("Path", file.Path).Str("Address", server.address).Msg("Starting file transfer to server")
 		// Prime the server for the file. This is a blocking call and the client will
 		// hold a read lock until this completes. Any new connections or directories will not be
@@ -151,7 +151,7 @@ func (client *torrxferClient) transferToServers(file ClientFile) error {
 		file.TransferTime = time.Now()
 		remoteFileInfo, err := server.rpcConnection.QueryFile(file.Path, file.MediaPrefix, fileuuid.String())
 		if err != nil {
-			client.sendConnectionNotification(ConnectionNotificationTypeQueryError, server, &file, err)
+			c.sendConnectionNotification(ConnectionNotificationTypeQueryError, server, &file, err)
 			// Currently, if a query fails on one connected server, the entire transfer is cancelled. The file is reattempted
 			// when the client starts again.
 			// TODO: More fine grained error handling for server-wise retry
@@ -171,7 +171,7 @@ func (client *torrxferClient) transferToServers(file ClientFile) error {
 				defer server.Unlock()
 				server.filesTransferred[file.Path] = file
 				server.fileTransferStatus[file] = remoteFileInfo.GetSize()
-				client.sendConnectionNotification(ConnectionNotificationTypeCompleted, server, &file)
+				c.sendConnectionNotification(ConnectionNotificationTypeCompleted, server, &file)
 			}()
 			continue
 		}
@@ -183,6 +183,10 @@ func (client *torrxferClient) transferToServers(file ClientFile) error {
 		// Setup the file transfer channels. Actual transferring is done on separate threads and should not
 		// block the client functionality. There may be one blocking call but it should be fairly trivial
 		fileSummaryChan, err := server.rpcConnection.TransferFile(bytesReader, common.DefaultBlockSize, offset, fileuuid.String())
+		if err != nil {
+			c.sendConnectionNotification(ConnectionNotificationTypeTransferError, server, &file, err)
+			return err
+		}
 		func() {
 			server.Lock()
 			defer server.Unlock()
@@ -206,11 +210,11 @@ func (client *torrxferClient) transferToServers(file ClientFile) error {
 			log.Debug().Int64("Written bytes", n).Msg("File transfer complete")
 		}(bytesWriter, file.Path)
 
-		go func(summaryChannel chan net.FileTransferNotification, server *ServerConnection, file *ClientFile) {
+		go func(summaryChannel chan net.FileTransferNotification, server *ServerConnection, file *File) {
 			for summary := range summaryChannel {
 				switch summary.NotificationType {
 				case net.TransferNotificationTypeError:
-					client.sendConnectionNotification(ConnectionNotificationTypeTransferError, server, file, summary.Error)
+					c.sendConnectionNotification(ConnectionNotificationTypeTransferError, server, file, summary.Error)
 					continue
 				case net.TransferNotificationTypeBytes:
 					func() {
@@ -218,11 +222,10 @@ func (client *torrxferClient) transferToServers(file ClientFile) error {
 						defer server.Unlock()
 						server.bytesTransferred += summary.LastTransferred
 						server.fileTransferStatus[*file] += summary.LastTransferred
-						client.sendConnectionNotification(ConnectionNotificationTypeFilesUpdated, server, file)
+						c.sendConnectionNotification(ConnectionNotificationTypeFilesUpdated, server, file)
 					}()
-					break
 				case net.TransferNotificationTypeClosed:
-					client.sendConnectionNotification(ConnectionNotificationTypeCompleted, server, file)
+					c.sendConnectionNotification(ConnectionNotificationTypeCompleted, server, file)
 				}
 			}
 		}(fileSummaryChan, server, &file)
@@ -230,15 +233,15 @@ func (client *torrxferClient) transferToServers(file ClientFile) error {
 	return nil
 }
 
-func (client *torrxferClient) sendConnectionNotification(n ConnectionNotificationType, updatedServer *ServerConnection, sentFile *ClientFile, err ...error) {
+func (c *torrxferClient) sendConnectionNotification(n ConnectionNotificationType, updatedServer *ServerConnection, sentFile *File, err ...error) {
 	serverNotif := ServerNotification{
 		NotificationType: n,
 		Error:            nil,
 		Connection:       updatedServer,
-		sentFile:         sentFile,
+		SentFile:         sentFile,
 	}
 	if len(err) != 0 {
 		serverNotif.Error = err[0]
 	}
-	client.notificationChannel <- serverNotif
+	c.notificationChannel <- serverNotif
 }

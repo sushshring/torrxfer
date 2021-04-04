@@ -23,10 +23,10 @@ import (
 )
 
 var (
-	tviewApp               *tview.Application
-	tvMainGrid             *tview.Grid
-	tvMenu                 *tview.List
-	tvAddServerForm        *tview.Form
+	tviewApp   *tview.Application
+	tvMainGrid *tview.Grid
+	tvMenu     *tview.List
+	// tvAddServerForm        *tview.Form
 	tvConnectionStatusGrid *tview.Grid
 
 	tvConnectionStatusElements []tview.Primitive
@@ -43,7 +43,7 @@ var (
 const (
 	name = "torrxfer-client"
 
-	progressBarPixels = 100
+	// progressBarPixels = 100
 )
 
 /********* Client update logic **********/
@@ -83,11 +83,9 @@ func updateServerState(serverNotification torrxfer.ServerNotification) {
 		switch serverNotification.NotificationType {
 		case torrxfer.ConnectionNotificationTypeConnected:
 			tvConnectionStatusElements = append(tvConnectionStatusElements, generateServerStatusUI(serverNotification.Connection))
-			break
 
 		case torrxfer.ConnectionNotificationTypeDisconnected:
 			tvConnectionStatusElements = append(tvConnectionStatusElements[:serverNotification.Connection.GetIndex()], tvConnectionStatusElements[serverNotification.Connection.GetIndex()+1:]...)
-			break
 		case torrxfer.ConnectionNotificationTypeFilesUpdated:
 			updateUI(func() {
 				for _, file := range serverNotification.Connection.GetFilesTransferred() {
@@ -134,7 +132,7 @@ func generateServerStatusUI(server *torrxfer.ServerConnection) tview.Primitive {
 	titleText.SetTextAlign(tview.AlignCenter)
 	titleText.SetText(fmt.Sprintf("%s:%d", server.GetAddress(), server.GetPort()))
 	titleText.SetBackgroundColor(tcell.ColorDarkOrchid)
-	titleText.SetBorderPadding(1, 1, 1, 1)
+	titleText.SetPadding(1, 1, 1, 1)
 	view.AddItem(titleText, 0, 1, false)
 
 	connectedSinceTextView := tview.NewTextView()
@@ -164,7 +162,7 @@ func generateServerStatusUI(server *torrxfer.ServerConnection) tview.Primitive {
 func StartUI(c torrxfer.TorrxferClient) {
 	// Change the logging mechanism to write to the table instead of stdout
 	tableLogger = &LogTable{}
-	common.ChangeLogger(tableLogger, true)
+	common.AddLogger(tableLogger, true)
 
 	client = c
 	tvConnectionStatusElements = make([]tview.Primitive, 0)
@@ -282,7 +280,7 @@ func connectServer() {
 		log.Debug().Str("Address", textToCheck).Msg("Getting cert for website")
 		port, _ := strconv.ParseUint(addServerForm.GetFormItemByLabel(serverAddressLabel).(*tview.InputField).GetText(), 10, 32)
 		if _, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", textToCheck, port)); err != nil {
-			common.LogErrorStack("Could not resolve address")
+			common.LogErrorStack(err, "Could not resolve address")
 		} else {
 			resp, err := http.Head(fmt.Sprintf("https://%s", textToCheck))
 			if err != nil {
@@ -388,7 +386,7 @@ func connectServer() {
 			}
 		}
 
-		server := &common.ServerConnectionConfig{
+		server := common.ServerConnectionConfig{
 			Address:  addServerForm.GetFormItemByLabel(serverAddressLabel).(*tview.InputField).GetText(),
 			Port:     uint32(port),
 			UseTLS:   useTLS,
