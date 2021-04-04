@@ -7,7 +7,7 @@ on:
     branches: [ master ]
 
 jobs:
-  build:
+  build/test:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -21,4 +21,4 @@ jobs:
     - name: Build
       run: make
     - name: Test
-      run: go test ./...
+      run: sudo go test ./...
