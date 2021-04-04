@@ -20,6 +20,9 @@ CLIENT_SRC = ./cmd/client/main.go \
 
 TEST_SRC = ./cmd/... ./pkg/...
 
+GO_TOOLS = golang.org/x/lint/golint \
+			google.golang.org/protobuf/cmd/protoc-gen-go \
+			google.golang.org/grpc/cmd/protoc-gen-go-grpc
 
 all: deps lint torrxfer-server torrxfer-client
 
@@ -40,7 +43,7 @@ vendor:
 .PHONY: vendor
 
 linter:
-	$(TORRXFER_OSARCH) go get -u golang.org/x/lint/golint
+	$(TORRXFER_OSARCH) go get -u 
 
 lint:
 	golint $(TEST_SRC)
