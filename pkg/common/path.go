@@ -39,10 +39,10 @@ func CleanPath(path string) (absolutePath string, err error) {
 	// Evaluate symlinks and clean filepath
 	err = nil
 	var cleanedFilePath string
-	cleanedFilePath, err = filepath.EvalSymlinks(path)
+	cleanedFilePath, err = os.Readlink(path)
 	if err != nil {
 		perr, ok := err.(*fs.PathError)
-		if perr.Op != "lstat" || !ok {
+		if perr.Op != "readlink" || !ok {
 			return "", err
 		}
 		cleanedFilePath = perr.Path
