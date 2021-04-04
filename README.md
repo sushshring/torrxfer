@@ -264,15 +264,15 @@ Project Link: [https://github.com/sushshring/torrxfer](https://github.com/sushsh
 
 <!-- MARKDOWN LINKS & IMAGES -->
 <!-- https://www.markdownguide.org/basic-syntax/#reference-style-links -->
-[contributors-shield]: https://img.shields.io/github/contributors/sushshring/repo.svg?style=for-the-badge
-[contributors-url]: https://github.com/sushshring/repo/graphs/contributors
-[forks-shield]: https://img.shields.io/github/forks/sushshring/repo.svg?style=for-the-badge
-[forks-url]: https://github.com/sushshring/repo/network/members
-[stars-shield]: https://img.shields.io/github/stars/sushshring/repo.svg?style=for-the-badge
-[stars-url]: https://github.com/sushshring/repo/stargazers
-[issues-shield]: https://img.shields.io/github/issues/sushshring/repo.svg?style=for-the-badge
-[issues-url]: https://github.com/sushshring/repo/issues
-[license-shield]: https://img.shields.io/github/license/sushshring/repo.svg?style=for-the-badge
-[license-url]: https://github.com/sushshring/repo/blob/master/LICENSE.txt
+[contributors-shield]: https://img.shields.io/github/contributors/sushshring/torrxfer.svg?style=for-the-badge
+[contributors-url]: https://github.com/sushshring/torrxfer/graphs/contributors
+[forks-shield]: https://img.shields.io/github/forks/sushshring/torrxfer.svg?style=for-the-badge
+[forks-url]: https://github.com/sushshring/torrxfer/network/members
+[stars-shield]: https://img.shields.io/github/stars/sushshring/torrxfer.svg?style=for-the-badge
+[stars-url]: https://github.com/sushshring/torrxfer/stargazers
+[issues-shield]: https://img.shields.io/github/issues/sushshring/torrxfer.svg?style=for-the-badge
+[issues-url]: https://github.com/sushshring/torrxfer/issues
+[license-shield]: https://img.shields.io/github/license/sushshring/torrxfer.svg?style=for-the-badge
+[license-url]: https://github.com/sushshring/torrxfer/blob/master/LICENSE.txt
 [linkedin-shield]: https://img.shields.io/badge/-LinkedIn-black.svg?style=for-the-badge&logo=linkedin&colorB=555
 [linkedin-url]: https://linkedin.com/in/sushshring
