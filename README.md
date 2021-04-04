@@ -4,7 +4,7 @@
 [![Issues][issues-shield]][issues-url]
 [![MIT License][license-shield]][license-url]
 [![LinkedIn][linkedin-shield]][linkedin-url]
-[![Build status][build-shield][build-status-url]]
+[![Build status][build-shield]][build-status-url]
 
 
 
