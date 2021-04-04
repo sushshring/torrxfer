@@ -44,7 +44,7 @@ func NewFileWatcher(directory string, mediaDirectoryRoot string) (FileWatcher, e
 
 	// Verify media directory root is valid
 	if !common.IsSubdir(mediaDirectoryRoot, directory) {
-		return nil, errors.New("Invalid media directory root")
+		return nil, errors.New("invalid media directory root")
 	}
 	innerdb, err := db.GetDb(clientFileDbName)
 	if err != nil {
@@ -137,6 +137,14 @@ func (filewatcher *fileWatcher) watcherThread() {
 				continue
 			}
 			clientFile, err = NewClientFile(path, filewatcher.mediaDirectoryRoot)
+			if err != nil {
+				log.Debug().Err(err).Msg("Could not create client file representation")
+				// Best effort delete
+				filewatcher.db.Delete(path)
+				// Treat this as a new file event
+				filewatcher.handleFileEvent(path, f.Size(), f.ModTime())
+				continue
+			}
 			func() {
 				// Schedule a transfer
 				filewatcher.Lock()

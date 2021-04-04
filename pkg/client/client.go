@@ -183,6 +183,10 @@ func (c *torrxferClient) transferToServers(file File) error {
 		// Setup the file transfer channels. Actual transferring is done on separate threads and should not
 		// block the client functionality. There may be one blocking call but it should be fairly trivial
 		fileSummaryChan, err := server.rpcConnection.TransferFile(bytesReader, common.DefaultBlockSize, offset, fileuuid.String())
+		if err != nil {
+			c.sendConnectionNotification(ConnectionNotificationTypeTransferError, server, &file, err)
+			return err
+		}
 		func() {
 			server.Lock()
 			defer server.Unlock()
@@ -220,7 +224,6 @@ func (c *torrxferClient) transferToServers(file File) error {
 						server.fileTransferStatus[*file] += summary.LastTransferred
 						c.sendConnectionNotification(ConnectionNotificationTypeFilesUpdated, server, file)
 					}()
-					break
 				case net.TransferNotificationTypeClosed:
 					c.sendConnectionNotification(ConnectionNotificationTypeCompleted, server, file)
 				}
