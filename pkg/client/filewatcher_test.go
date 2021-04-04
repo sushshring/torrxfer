@@ -22,7 +22,7 @@ const testWatchDir = "testdir"
 func setup() error {
 	tmpDir := os.TempDir()
 	testWatchDirPath := filepath.Join(tmpDir, testWatchDir)
-	err := os.MkdirAll(testWatchDirPath, os.ModeDir)
+	err := os.MkdirAll(testWatchDirPath, 0777)
 	if err != nil {
 		return err
 	}
