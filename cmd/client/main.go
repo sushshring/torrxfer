@@ -6,9 +6,10 @@ import (
 
 	"github.com/alecthomas/kingpin"
 	"github.com/rs/zerolog/log"
-	"github.com/sethgrid/multibar"
 	torrxfer "github.com/sushshring/torrxfer/pkg/client"
 	"github.com/sushshring/torrxfer/pkg/common"
+	"github.com/vbauerster/mpb/v6"
+	"github.com/vbauerster/mpb/v6/decor"
 )
 
 var (
@@ -29,8 +30,8 @@ func main() {
 	client := torrxfer.NewTorrxferClient()
 	err := client.Run(*config)
 
-	progressBarMap := make(map[string]multibar.ProgressFunc)
-	p, _ := multibar.New()
+	progressBarMap := make(map[string]*mpb.Bar)
+	p := mpb.New(nil)
 
 	for notification := range client.RegisterForConnectionNotifications() {
 		switch notification.NotificationType {
@@ -41,11 +42,22 @@ func main() {
 		case torrxfer.ConnectionNotificationTypeQueryError:
 			log.Info().Object("Server", notification.Connection).Object("File", notification.SentFile).Msg("Query Error")
 		case torrxfer.ConnectionNotificationTypeFilesUpdated:
-			if progressBarFunc, ok := progressBarMap[notification.SentFile.Path]; !ok {
-				pFunc := p.MakeBar(int(notification.SentFile.Size), fmt.Sprintf("Transferring file. Path: %s", notification.SentFile.Path))
-				progressBarMap[notification.SentFile.Path] = pFunc
+			if progressBar, ok := progressBarMap[notification.SentFile.Path]; !ok {
+				bar := p.Add(int64(notification.SentFile.Size),
+					mpb.NewBarFiller("[=>-|"),
+					mpb.PrependDecorators(
+						decor.Name(fmt.Sprintf("Transferring file. Path: %s", notification.SentFile.Path))
+						decor.CountersKibiByte("% .2f / % .2f"),
+					),
+					mpb.AppendDecorators(
+						decor.EwmaETA(decor.ET_STYLE_GO, 90),
+						decor.Name(" ] "),
+						decor.EwmaSpeed(decor.UnitKiB, "% .2f", 60),
+					),
+				)
+				progressBarMap[notification.SentFile.Path] = bar
 			} else {
-				progressBarFunc(int(notification.Connection.GetFileSizeOnServer(notification.SentFile.Path)))
+				progressBar.IncrBy(int(notification.Connection.GetFileSizeOnServer(notification.SentFile.Path)))
 			}
 			log.Info().Object("Server", notification.Connection)
 		}
