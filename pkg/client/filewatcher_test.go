@@ -181,7 +181,10 @@ func TestNotifyNewFile(t *testing.T) {
 	go func() {
 		fileSet := set.New()
 		// Expect to find testfile but it shouldn't have been written yet
-		p, _ := common.CleanPath(path.Join(testWatchDirPath, testfileName))
+		p, err := common.CleanPath(path.Join(testWatchDirPath, testfileName))
+		if err != nil {
+			t.Error("Could not clean path", err)
+		}
 		fileSet.Insert(p)
 		for file := range fw.RegisterForFileNotifications() {
 			t.Logf("Got file: %s", file.Path)
