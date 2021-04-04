@@ -22,8 +22,8 @@ const transferFileOauthCredentialScope string = "transferFileOauthCredentialScop
 // TorrxferServerConnection represents a wrapper around the gRPC mechanisms to
 // talk to the torrxfer server
 type TorrxferServerConnection interface {
-	QueryFile(file string, mediaPrefix string, correlationUuid string) (*RPCFile, error)
-	TransferFile(fileBytes *io.PipeReader, blockSize uint32, offset uint64, correlationUuid string) (fileSummaryChan chan FileTransferNotification, err error)
+	QueryFile(file string, mediaPrefix string, correlationUUID string) (*RPCFile, error)
+	TransferFile(fileBytes *io.PipeReader, blockSize uint32, offset uint64, correlationUUID string) (fileSummaryChan chan FileTransferNotification, err error)
 }
 
 type torrxferServerConnection struct {
@@ -31,14 +31,19 @@ type torrxferServerConnection struct {
 	uuid uuid.UUID
 }
 
+// TransferNotificationType is an iota
 type TransferNotificationType uint8
 
 const (
+	// TransferNotificationTypeError Error
 	TransferNotificationTypeError TransferNotificationType = iota
+	// TransferNotificationTypeBytes sent bytes
 	TransferNotificationTypeBytes
+	// TransferNotificationTypeClosed Closed connection
 	TransferNotificationTypeClosed
 )
 
+// FileTransferNotification Updated file notification
 type FileTransferNotification struct {
 	NotificationType TransferNotificationType
 	Filepath         string
@@ -84,14 +89,14 @@ func NewTorrxferServerConnection(server common.ServerConnectionConfig) (Torrxfer
 }
 
 // QueryFile makes a gRPC call to the provided server and either returns a file summary or FileNotFoundException
-func (client *torrxferServerConnection) QueryFile(filePath string, mediaPrefix string, correlationUuid string) (*RPCFile, error) {
+func (client *torrxferServerConnection) QueryFile(filePath string, mediaPrefix string, correlationUUID string) (*RPCFile, error) {
 	ctx := context.Background()
 	file, err := NewFile(filePath)
 	if err := file.SetMediaPath(mediaPrefix); err != nil {
 		common.LogError(err, "Could not set media prefix")
 		return nil, err
 	}
-	ctx = metadata.AppendToOutgoingContext(ctx, "clientdata", correlationUuid)
+	ctx = metadata.AppendToOutgoingContext(ctx, "clientdata", correlationUUID)
 	if err != nil {
 		common.LogError(err, "Could not create file")
 		return nil, err
@@ -105,12 +110,12 @@ func (client *torrxferServerConnection) QueryFile(filePath string, mediaPrefix s
 }
 
 // TransferFile makes a gRPC call to the provided server and transfer the file data as a stream
-func (client *torrxferServerConnection) TransferFile(fileBytes *io.PipeReader, blockSize uint32, offset uint64, correlationUuid string) (fileSummaryChan chan FileTransferNotification, err error) {
+func (client *torrxferServerConnection) TransferFile(fileBytes *io.PipeReader, blockSize uint32, offset uint64, correlationUUID string) (fileSummaryChan chan FileTransferNotification, err error) {
 	conn := pb.NewRpcTorrxferServerClient(client.cc)
 	fileSummaryChan = make(chan FileTransferNotification)
 
 	ctx := context.Background()
-	ctx = metadata.AppendToOutgoingContext(ctx, "clientdata", correlationUuid)
+	ctx = metadata.AppendToOutgoingContext(ctx, "clientdata", correlationUUID)
 	stream, err := conn.TransferFile(ctx)
 	if err != nil {
 		log.Debug().Err(err).Msg("Could not start transferring the file")

@@ -1,5 +1,6 @@
 package common
 
+// DefaultBlockSize is the minimal block that is transferred to the server
 const DefaultBlockSize = 1024
 
 // ServerConfig describes all the environment specific details for running the server

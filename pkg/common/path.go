@@ -6,17 +6,20 @@ import (
 	"path/filepath"
 )
 
+// IsSubdir returns true if subDir is a sub directory of rootdir
 func IsSubdir(rootDir, subdir string) bool {
 	pattern := rootDir + string(filepath.Separator) + "*"
 	matched, err := filepath.Match(pattern, subdir)
 	return err == nil && matched
 }
 
+// DirectoryDecoder decodes a directory from json
 type DirectoryDecoder struct {
 	FsInfo   fs.FileInfo
 	Filepath string
 }
 
+// Decode take a file name and uses it as the filepath
 func (d *DirectoryDecoder) Decode(value string) error {
 	fileInfo, err := os.Stat(value)
 	if err != nil {
@@ -31,6 +34,7 @@ func (d *DirectoryDecoder) Decode(value string) error {
 	return nil
 }
 
+// CleanPath takes a directory path and evaluates symlinks, takes the absolute path, and adds path separators based on the OS
 func CleanPath(path string) (absolutePath string, err error) {
 	// Evaluate symlinks and clean filepath
 	err = nil

@@ -1,5 +1,3 @@
-.vscode/launch.json
-.vscode/spellright.dict
 bin/client
 bin/torrxfer-client
 bin/torrxfer-server
@@ -13,3 +11,5 @@ vendor/**/*
 **/*.csr
 .DS_Store
 rpc/
+protoc-*.zip
+.vscode/

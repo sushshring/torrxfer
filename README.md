@@ -64,8 +64,7 @@
 ### Built With
 
 * [Golang](https://golang.org)
-
-
+* [gRPC](https://grpc.io)
 
 <!-- GETTING STARTED -->
 # Getting Started
@@ -75,7 +74,9 @@ To get a local copy up and running follow these simple steps.
 ## Prerequisites
 
 This is an example of how to list things you need to use the software and how to install them.
-* go: [Golang installation](https://golang.org/doc/install)
+* [Golang installation](https://golang.org/doc/install)
+* [Protobuf Compiler](https://grpc.io/docs/protoc-installation/)
+  * If you run make, it will automatically install v3.15.5 of protoc
 
 ## Installation
 
@@ -91,9 +92,17 @@ This is an example of how to list things you need to use the software and how to
     ```sh
     make torrxfer-server
     make torrxfer-client
-    # OR build and compile both
-    make 
     ```
+  ### Alternately
+  ```sh
+  # This will run the linter, download protoc, download vendor deps, run protoc generation, and compile sources
+  make
+  ```
+
+## Run tests
+```sh
+make test
+```
 
 
 

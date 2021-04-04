@@ -12,12 +12,14 @@ import (
 	"github.com/rs/zerolog/pkgerrors"
 )
 
+// LogFileDecoder wraps a writer and writes to it
 type LogFileDecoder struct {
 	Writer io.Writer
 }
 
 var loggers map[io.Writer]bool
 
+// Decode takes a file name and opens it as the log file
 func (d *LogFileDecoder) Decode(value string) error {
 	if value == "" {
 		d.Writer = nil
@@ -31,10 +33,12 @@ func (d *LogFileDecoder) Decode(value string) error {
 	return nil
 }
 
+// LogErrorStack wrapper around logging an error with the current stack
 func LogErrorStack(err error, message string) {
 	log.Error().Stack().Err(err).Msg(message)
 }
 
+// LogError wrapper around logging regular error
 func LogError(err error, message string) {
 	log.Error().Err(err).Msg(message)
 }
@@ -52,6 +56,7 @@ func ConfigureLogging(debug bool, shortLog bool, loggers ...io.Writer) {
 	}
 }
 
+// AddLogger adds a new logger to the application and logs to all active loggers
 func AddLogger(logger io.Writer, shortLog bool) {
 	if logger == nil {
 		logger = os.Stdout

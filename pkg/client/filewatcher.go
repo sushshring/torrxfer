@@ -22,7 +22,7 @@ var writeDuration time.Duration = 2 * time.Second
 
 // FileWatcher provides notifications when changes occur on the provided watched directory
 type FileWatcher interface {
-	RegisterForFileNotifications() <-chan ClientFile
+	RegisterForFileNotifications() <-chan File
 	RemoveWatchedFile(file string)
 	Close()
 }
@@ -30,7 +30,7 @@ type FileWatcher interface {
 type fileWatcher struct {
 	db                        db.KvDB
 	watchedDirectory          string
-	channel                   chan ClientFile
+	channel                   chan File
 	watchedFileTransferTimers map[string]*time.Timer
 	w                         *watcher.Watcher
 	mediaDirectoryRoot        string
@@ -54,7 +54,7 @@ func NewFileWatcher(directory string, mediaDirectoryRoot string) (FileWatcher, e
 	filewatcher := &fileWatcher{
 		innerdb,
 		directory,
-		make(chan ClientFile, 10),
+		make(chan File, 10),
 		make(map[string]*time.Timer),
 		nil,
 		mediaDirectoryRoot,
@@ -72,7 +72,7 @@ func NewFileWatcher(directory string, mediaDirectoryRoot string) (FileWatcher, e
 // RegisterForFileNotifications retuns a channel that responds with File objects
 // for any new file write or update. On init, it will also send a notification for all
 // the files in the folder regardless of their presence in the database
-func (filewatcher *fileWatcher) RegisterForFileNotifications() <-chan ClientFile {
+func (filewatcher *fileWatcher) RegisterForFileNotifications() <-chan File {
 	return filewatcher.channel
 }
 
@@ -120,7 +120,7 @@ func (filewatcher *fileWatcher) watcherThread() {
 		}
 		log.Debug().Str("File name", path).Msg("Found file")
 
-		var clientFile *ClientFile
+		var clientFile *File
 		// Try to transfer all watched files
 		if filewatcher.db.Has(path) {
 			// Since DB already has the file, mark this as a potential write to existing file event.
@@ -230,7 +230,7 @@ func (filewatcher *fileWatcher) handleFileEvent(path string, size int64, modTime
 	}
 }
 
-func (filewatcher *fileWatcher) transferFile(file *ClientFile) {
+func (filewatcher *fileWatcher) transferFile(file *File) {
 	log.Debug().Str("File path", file.Path).Msg("Starting transfer after waiting for write timer")
 	filewatcher.Lock()
 	defer filewatcher.Unlock()
