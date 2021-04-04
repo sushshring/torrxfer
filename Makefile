@@ -20,7 +20,10 @@ CLIENT_SRC = ./cmd/client/main.go \
 
 TEST_SRC = ./cmd/... ./pkg/...
 
-all: lint proto vendor torrxfer-server torrxfer-client
+
+all: deps lint torrxfer-server torrxfer-client
+
+deps: proto vendor linter
 
 proto: protoc $(PROTO_SRC)
 	mkdir -p $(PROTO_OUT)
@@ -35,6 +38,9 @@ torrxfer-client: $(CLIENT_SRC)
 vendor:
 	$(TORRXFER_OSARCH) go mod vendor
 .PHONY: vendor
+
+linter:
+	$(TORRXFER_OSARCH) go get -u golang.org/x/lint/golint
 
 lint:
 	golint $(TEST_SRC)
