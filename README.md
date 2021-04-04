@@ -4,7 +4,7 @@
 [![Issues][issues-shield]][issues-url]
 [![MIT License][license-shield]][license-url]
 [![LinkedIn][linkedin-shield]][linkedin-url]
-[![Build status][github-shield][build-status-url]]
+[![Build status][build-shield][build-status-url]]
 
 
 
@@ -269,7 +269,7 @@ Project Link: [https://github.com/sushshring/torrxfer](https://github.com/sushsh
 [contributors-url]: https://github.com/sushshring/torrxfer/graphs/contributors
 [forks-shield]: https://img.shields.io/github/forks/sushshring/torrxfer.svg?style=for-the-badge
 [forks-url]: https://github.com/sushshring/torrxfer/network/members
-[github-shield]: https://img.shields.io/github/forks/sushshring/torrxfer.svg?style=for-the-badge
+[build-shield]: https://img.shields.io/github/workflow/status/sushshring/torrxfer/Go?event=push
 [build-status-url]: https://github.com/sushshring/torrxfer/actions/workflows/go.yml/badge.svg?event=push
 [stars-shield]: https://img.shields.io/github/stars/sushshring/torrxfer.svg?style=for-the-badge
 [stars-url]: https://github.com/sushshring/torrxfer/stargazers
