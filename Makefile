@@ -1,15 +1,13 @@
 include Makefile-Arch.dep
-# include Makefile-Protoc.dep
 PWD := $(shell pwd)
 LDFLAGS := -ldflags="-s -w"
 DEPLOY := bin
 GC := go build
 TORRXFER_OSARCH := GOOS=$(TORRXFER_KRNL) GOARCH=$(TORRXFER_ARCH)
-PC := 	/tmp/build/bin/protoc
+PC := protoc
 PREFIX := $(PWD)
 
 PROTO_IN = ./proto
-PROTOC_DIR = protoc-3.15.5-$(TORRXFER_OS)$(UNAME_P)
 PROTO_SRC = $(PROTO_IN)/server.proto \
 
 PROTO_OUT = rpc
@@ -28,7 +26,7 @@ all: deps lint torrxfer-server torrxfer-client
 
 deps: tools proto vendor
 
-proto: protoc $(PROTO_SRC)
+proto: $(PROTO_SRC)
 	mkdir -p $(PROTO_OUT)
 	$(PC) $(PCFLAGS) --go_out=$(PROTO_OUT) --go-grpc_out=$(PROTO_OUT) $(PROTO_SRC)
 
@@ -46,14 +44,9 @@ tools:
 	$(TORRXFER_OSARCH) go get -u $(GO_TOOLS) $(GO_DEPS)
 
 lint:
-	golint $(TEST_SRC)
+	-golint $(TEST_SRC)
 .PHONY: lint
 
-PB_REL = https://github.com/protocolbuffers/protobuf/releases
-protoc:
-	curl -LO $(PB_REL)/download/v3.15.5/$(PROTOC_DIR).zip
-	unzip -o  $(PROTOC_DIR).zip -d /tmp/build
-	chmod +x /tmp/build/bin/protoc
 
 test:
 	$(TORRXFER_OSARCH) go test $(TEST_SRC)
