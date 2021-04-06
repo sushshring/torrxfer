@@ -34,7 +34,7 @@ jobs:
         with:
           # list of Docker images to use as base name for tags
           images: |
-            sushshring/torrxfer
+            sushshring/torrxfer-server
             ghcr.io/torrxfer/torrxfer-server
           # generate Docker tags based on the following events/attributes
           tags: |
@@ -95,7 +95,7 @@ jobs:
         cache-from: type=local,src=/tmp/.buildx-cache
         cache-to: type=local,dest=/tmp/.buildx-cache-new
         platforms: linux/amd64,linux/arm64,linux/arm/v7 
-        push: ${{ github.event_name != 'pull_request' && (github.ref == 'refs/heads/master' || contains('refs/tags/', github.ref))}}
+        push: ${{ github.event_name != 'pull_request' }}
         tags: ${{ steps.servermeta.outputs.tags }}
         labels: ${{ steps.servermeta.outputs.labels }}
     -
@@ -107,7 +107,7 @@ jobs:
         platforms: linux/amd64,linux/arm64
         cache-from: type=local,src=/tmp/.buildx-cache
         cache-to: type=local,dest=/tmp/.buildx-cache-new
-        push: ${{ github.event_name != 'pull_request' && (github.ref == 'refs/heads/master' || contains('refs/tags/', github.ref))}}
+        push: ${{ github.event_name != 'pull_request' }}
         tags: ${{ steps.clientmeta.outputs.tags }}
         labels: ${{ steps.clientmeta.outputs.labels }}
     -
