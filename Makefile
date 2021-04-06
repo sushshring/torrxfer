@@ -19,16 +19,17 @@ CLIENT_SRC = ./cmd/client/main.go \
 TEST_SRC = ./cmd/... ./pkg/...
 
 GO_TOOLS = golang.org/x/lint/golint \
-			google.golang.org/protobuf/cmd/protoc-gen-go \
-			google.golang.org/grpc/cmd/protoc-gen-go-grpc
 
 all: deps lint torrxfer-server torrxfer-client
 
-deps: tools proto vendor
+deps: tools vendor
 
-proto: $(PROTO_SRC)
+protoc:
+	$(TORRXFER_OSARCH) go install google.golang.org/protobuf/cmd/protoc-gen-go@latest $(GO_DEPS)
+	$(TORRXFER_OSARCH) go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest $(GO_DEPS)
 	mkdir -p $(PROTO_OUT)
 	$(PC) $(PCFLAGS) --go_out=$(PROTO_OUT) --go-grpc_out=$(PROTO_OUT) $(PROTO_SRC)
+.PHONY: protoc
 
 torrxfer-server: $(SERVER_SRC)
 	$(TORRXFER_OSARCH) $(GC) $(LDFLAGS) -o $(DEPLOY)/$@ $^

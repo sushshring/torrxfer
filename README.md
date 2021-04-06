@@ -97,6 +97,7 @@ This is an example of how to list things you need to use the software and how to
   ### Alternately
   ```sh
   # This will run the linter, download protoc, download vendor deps, run protoc generation, and compile sources
+  make protoc
   make
   ```
 

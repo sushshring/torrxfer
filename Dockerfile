@@ -1,7 +1,14 @@
 #build stage
+FROM --platform=linux/amd64 golang:1.16 AS protoc
+RUN apt update && apt install -y protobuf-compiler
+COPY ./proto /src/proto
+COPY ./Makefile ./Makefile-Arch.dep /src/
+WORKDIR /src
+RUN make protoc
+
 FROM golang:1.16 AS builder
-RUN apt update && apt install -y unzip protobuf-compiler
 COPY . /src
+COPY --from=protoc /src/rpc /src/rpc
 WORKDIR /src
 RUN make
 
