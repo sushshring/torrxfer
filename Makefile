@@ -1,11 +1,10 @@
 include Makefile-Arch.dep
-# include Makefile-Protoc.dep
 PWD := $(shell pwd)
 LDFLAGS := -ldflags="-s -w"
 DEPLOY := bin
 GC := go build
 TORRXFER_OSARCH := GOOS=$(TORRXFER_KRNL) GOARCH=$(TORRXFER_ARCH)
-PC := 	/tmp/build/bin/protoc
+PC := protoc
 PREFIX := $(PWD)
 
 PROTO_IN = ./proto
@@ -21,16 +20,17 @@ CLIENT_SRC = ./cmd/client/main.go \
 TEST_SRC = ./cmd/... ./pkg/...
 
 GO_TOOLS = golang.org/x/lint/golint \
-			google.golang.org/protobuf/cmd/protoc-gen-go \
-			google.golang.org/grpc/cmd/protoc-gen-go-grpc
 
 all: deps lint torrxfer-server torrxfer-client
 
-deps: tools proto vendor
+deps: tools vendor
 
-proto: protoc $(PROTO_SRC)
+protoc: protoc-install
+	$(TORRXFER_OSARCH) go install google.golang.org/protobuf/cmd/protoc-gen-go@latest $(GO_DEPS)
+	$(TORRXFER_OSARCH) go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest $(GO_DEPS)
 	mkdir -p $(PROTO_OUT)
 	$(PC) $(PCFLAGS) --go_out=$(PROTO_OUT) --go-grpc_out=$(PROTO_OUT) $(PROTO_SRC)
+.PHONY: protoc
 
 torrxfer-server: $(SERVER_SRC)
 	$(TORRXFER_OSARCH) $(GC) $(LDFLAGS) -o $(DEPLOY)/$@ $^
@@ -46,19 +46,19 @@ tools:
 	$(TORRXFER_OSARCH) go get -u $(GO_TOOLS) $(GO_DEPS)
 
 lint:
-	golint $(TEST_SRC)
+	-golint $(TEST_SRC)
 .PHONY: lint
-
-PB_REL = https://github.com/protocolbuffers/protobuf/releases
-protoc:
-	curl -LO $(PB_REL)/download/v3.15.5/$(PROTOC_DIR).zip
-	unzip -o  $(PROTOC_DIR).zip -d /tmp/build
-	chmod +x /tmp/build/bin/protoc
 
 test:
 	$(TORRXFER_OSARCH) go test $(TEST_SRC)
 .PHONY: test
 
+PB_REL = https://github.com/protocolbuffers/protobuf/releases
+protoc-install:
+	curl -LO $(PB_REL)/download/v3.15.5/$(PROTOC_DIR).zip
+	unzip -o  $(PROTOC_DIR).zip -d /tmp/build
+	chmod +x /tmp/build/bin/protoc
+	$(eval PC := /tmp/build/bin/protoc)
 
 clean:
 	rm -rf $(DEPLOY)

@@ -31,7 +31,7 @@ message File {
     uint64 createdTime = 5;
     uint64 modifiedTime = 6;
     uint64 size = 7;
-    optional uint64 sizeOnDisk = 8;
+    uint64 sizeOnDisk = 8;
 }
 
 message Empty {}

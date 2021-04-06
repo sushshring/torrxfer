@@ -83,10 +83,7 @@ func (f *RPCFile) GetSize() uint64 {
 
 // GetRemoteSize returns the size of the file on the server
 func (f *RPCFile) GetRemoteSize() uint64 {
-	if f.file.SizeOnDisk != nil {
-		return *f.file.SizeOnDisk
-	}
-	return 0
+	return f.file.SizeOnDisk
 }
 
 // GetDataHash data hash
