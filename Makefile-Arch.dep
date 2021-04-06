@@ -21,10 +21,12 @@ else
         TORRXFER_ARCH = 386
     endif
     ifneq ($(filter -arm%,$(UNAME_P)),)
+        # Compiling proto on arm is not supported
         TORRXFER_ARCH = arm
     endif
-    ifneq ($(filter -aarch%,$(UNAME_P)),)
-        TORRXFER_ARCH = arm
+    ifneq ($(filter -aarch64,$(UNAME_P)),)
+        TORRXFER_ARCH = arm64
+        UNAME_P = aarch_64
     endif
     UNAME_S := $(shell uname -s)
     ifeq ($(UNAME_S),Linux)

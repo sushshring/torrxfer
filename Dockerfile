@@ -3,6 +3,8 @@ FROM --platform=linux/amd64 golang:1.16 AS protoc
 RUN apt update && apt install -y protobuf-compiler
 COPY ./proto /src/proto
 COPY ./Makefile ./Makefile-Arch.dep /src/
+# Make runs protoc-install as a step to download the file from the protoc source. Skip since we are installing from apt
+RUN touch /src/protoc-install
 WORKDIR /src
 RUN make protoc
 

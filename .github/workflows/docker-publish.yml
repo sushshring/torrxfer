@@ -67,19 +67,31 @@ jobs:
       with:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
+    # -
+    #     name: Login to GitHub Container Registry
+    #     uses: docker/login-action@v1 
+    #     with:
+    #       registry: ghcr.io
+
+    #       username: ${{ github.repository_owner }}
+    #       password: ${{ secrets.GITHUB_TOKEN }}
     -
-        name: Login to GitHub Container Registry
-        uses: docker/login-action@v1 
+        name: Cache Docker layers
+        uses: actions/cache@v2
+        id: cache
         with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
     -
       name: Build and push server
       uses: docker/build-push-action@v2
       with:
         context: .
         target: torrxfer-server
+        cache-from: type=local,src=/tmp/.buildx-cache
+        cache-to: type=local,dest=/tmp/.buildx-cache-new
         platforms: linux/amd64,linux/arm64,linux/arm/v7 
         push: ${{ github.event_name != 'pull_request' }}
         tags: ${{ steps.servermeta.outputs.tags }}
@@ -91,7 +103,17 @@ jobs:
         context: .
         target: torrxfer-client
         platforms: linux/amd64,linux/arm64
+        cache-from: type=local,src=/tmp/.buildx-cache
+        cache-to: type=local,dest=/tmp/.buildx-cache-new
         push: ${{ github.event_name != 'pull_request' }}
         tags: ${{ steps.clientmeta.outputs.tags }}
         labels: ${{ steps.clientmeta.outputs.labels }}
+    -
+      # Temp fix
+      # https://github.com/docker/build-push-action/issues/252
+      # https://github.com/moby/buildkit/issues/1896
+      name: Move cache
+      run: |
+        rm -rf /tmp/.buildx-cache
+        mv /tmp/.buildx-cache-new /tmp/.buildx-cache
 

@@ -8,6 +8,7 @@ PC := protoc
 PREFIX := $(PWD)
 
 PROTO_IN = ./proto
+PROTOC_DIR = protoc-3.15.5-$(TORRXFER_OS)$(UNAME_P)
 PROTO_SRC = $(PROTO_IN)/server.proto \
 
 PROTO_OUT = rpc
@@ -24,7 +25,7 @@ all: deps lint torrxfer-server torrxfer-client
 
 deps: tools vendor
 
-protoc:
+protoc: protoc-install
 	$(TORRXFER_OSARCH) go install google.golang.org/protobuf/cmd/protoc-gen-go@latest $(GO_DEPS)
 	$(TORRXFER_OSARCH) go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest $(GO_DEPS)
 	mkdir -p $(PROTO_OUT)
@@ -48,11 +49,16 @@ lint:
 	-golint $(TEST_SRC)
 .PHONY: lint
 
-
 test:
 	$(TORRXFER_OSARCH) go test $(TEST_SRC)
 .PHONY: test
 
+PB_REL = https://github.com/protocolbuffers/protobuf/releases
+protoc-install:
+	curl -LO $(PB_REL)/download/v3.15.5/$(PROTOC_DIR).zip
+	unzip -o  $(PROTOC_DIR).zip -d /tmp/build
+	chmod +x /tmp/build/bin/protoc
+	$(eval PC := /tmp/build/bin/protoc)
 
 clean:
 	rm -rf $(DEPLOY)
