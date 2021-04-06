@@ -3,11 +3,13 @@ on:
   push:
     branches:
       - 'master'
+      - 'dev'
     tags:
       - 'v*.*.*'
   pull_request:
     branches:
       - 'master'
+      - 'dev'
 jobs:
   # Push image to GitHub Packages.
   # See also https://docs.docker.com/docker-hub/builds/
@@ -93,7 +95,7 @@ jobs:
         cache-from: type=local,src=/tmp/.buildx-cache
         cache-to: type=local,dest=/tmp/.buildx-cache-new
         platforms: linux/amd64,linux/arm64,linux/arm/v7 
-        push: ${{ github.event_name != 'pull_request' }}
+        push: ${{ github.event_name != 'pull_request' && (github.ref == 'refs/heads/master' || contains('refs/tags/', github.ref))}}
         tags: ${{ steps.servermeta.outputs.tags }}
         labels: ${{ steps.servermeta.outputs.labels }}
     -
@@ -105,7 +107,7 @@ jobs:
         platforms: linux/amd64,linux/arm64
         cache-from: type=local,src=/tmp/.buildx-cache
         cache-to: type=local,dest=/tmp/.buildx-cache-new
-        push: ${{ github.event_name != 'pull_request' }}
+        push: ${{ github.event_name != 'pull_request' && (github.ref == 'refs/heads/master' || contains('refs/tags/', github.ref))}}
         tags: ${{ steps.clientmeta.outputs.tags }}
         labels: ${{ steps.clientmeta.outputs.labels }}
     -
