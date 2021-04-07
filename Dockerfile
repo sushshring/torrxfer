@@ -9,22 +9,21 @@ WORKDIR /src
 RUN make protoc
 
 FROM golang:1.16 AS builder
+RUN update-ca-certificates
 COPY . /src
 COPY --from=protoc /src/rpc /src/rpc
 WORKDIR /src
 RUN make
 
 #Client builder
-FROM alpine:latest AS torrxfer-client
-RUN apk update && apk add ca-certificates
+FROM gcr.io/distroless/base AS torrxfer-client
 COPY --from=builder /src/bin/torrxfer-client /bin/torrxfer-client
 LABEL Name=torrxfer-client Version=0.0.1
 VOLUME [ "/config/client.json" ]
 ENTRYPOINT ["/bin/torrxfer-client", "--config=/config/client.json"]
 
 #Server builder
-FROM alpine:latest AS torrxfer-server
-RUN apk update && apk add ca-certificates
+FROM gcr.io/distroless/base AS torrxfer-server
 COPY --from=builder /src/bin/torrxfer-server /bin/torrxfer-server
 LABEL Name=torrxfer-server Version=0.0.1
 VOLUME ["/transfers", "/keys/cafile.pem", "/keys/keyfile.pem"]
