@@ -44,19 +44,21 @@ func LogError(err error, message string) {
 }
 
 // ConfigureLogging configures all the log related settings for the application
-func ConfigureLogging(debug bool, shortLog bool, loggers ...io.Writer) {
+func ConfigureLogging(debug bool, shortLog bool, loggersIn ...io.Writer) {
+	loggers = make(map[io.Writer]bool)
 	zerolog.SetGlobalLevel(zerolog.InfoLevel)
 	if debug {
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 	}
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
-	for _, logger := range loggers {
+	for _, logger := range loggersIn {
 		AddLogger(logger, shortLog)
 	}
 }
 
 // AddLogger adds a new logger to the application and logs to all active loggers
+// ConfigureLogging must be called prior to this call
 func AddLogger(logger io.Writer, shortLog bool) {
 	if logger == nil {
 		logger = os.Stdout
