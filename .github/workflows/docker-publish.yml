@@ -1,11 +1,11 @@
 name: Docker
 on:
-  release:
-    types: [published]
   push:
     branches:
       - 'master'
       - 'dev'
+    tag:
+      - "v*.*.*"
   pull_request:
     branches:
       - 'master'
@@ -82,9 +82,9 @@ jobs:
       with:
         context: .
         target: torrxfer-server
+        platforms: linux/amd64,linux/arm64,linux/arm
         cache-from: type=local,src=/tmp/.buildx-cache
         cache-to: type=local,dest=/tmp/.buildx-cache-new
-        platforms: linux/amd64,linux/arm64,linux/arm/v7,linux/arm
         push: ${{ github.event_name != 'pull_request' }}
         tags: ${{ steps.servermeta.outputs.tags }}
         labels: ${{ steps.servermeta.outputs.labels }}
