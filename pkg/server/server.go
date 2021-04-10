@@ -6,8 +6,10 @@ import (
 	"io"
 	gnet "net"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/juju/fslock"
@@ -34,7 +36,7 @@ const (
 
 // RunServer starts the server
 func RunServer(serverConf common.ServerConfig, enableTLS bool, cafilePath, keyfilePath string) *TorrxferServer {
-	lis, err := gnet.Listen("tcp", fmt.Sprintf("localhost:%d", serverConf.Port))
+	lis, err := gnet.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", serverConf.Port))
 	if err != nil {
 		log.Fatal().Err(err).Msg("Could not start server")
 	}
@@ -71,7 +73,15 @@ func RunServer(serverConf common.ServerConfig, enableTLS bool, cafilePath, keyfi
 	}
 	rpcserver := net.NewRPCTorrxferServer(server)
 	pb.RegisterRpcTorrxferServerServer(grpcServer, rpcserver)
-	grpcServer.Serve(lis)
+	grpc.EnableTracing = true
+	doneChan := server.configureSignals()
+	go grpcServer.Serve(lis)
+	<-doneChan
+	grpcServer.Stop()
+	for activeClient := range server.activeFiles {
+		server.Close(activeClient)
+	}
+	server.fileDb.Close()
 	return server
 }
 
@@ -100,11 +110,16 @@ func (s *TorrxferServer) QueryFunction(clientID string, file *net.RPCFile) (*net
 			currentSize:  0,
 			creationTime: time.Now(),
 			modifiedTime: time.Now(),
-			readChannel:  readChan,
 			writeChannel: writeChan,
+			readChannel:  readChan,
 			errorChannel: make(chan error, 1),
 			doneChannel:  make(chan struct{}, 1),
 			mux:          fslock.Lock{},
+			Cond: sync.Cond{
+				L: &sync.RWMutex{},
+			},
+			RWMutex: sync.RWMutex{},
+			Once:    sync.Once{},
 		}
 		bytes, err := serverFile.MarshalText()
 		if err != nil {
@@ -153,11 +168,16 @@ func (s *TorrxferServer) QueryFunction(clientID string, file *net.RPCFile) (*net
 		currentSize:  uint64(fileSize),
 		creationTime: file.GetCreationTime(),
 		modifiedTime: modifiedTime,
-		readChannel:  readChan,
 		writeChannel: writeChan,
+		readChannel:  readChan,
 		errorChannel: make(chan error, 1),
 		doneChannel:  make(chan struct{}, 1),
 		mux:          fslock.Lock{},
+		Cond: sync.Cond{
+			L: &sync.RWMutex{},
+		},
+		RWMutex: sync.RWMutex{},
+		Once:    sync.Once{},
 	}
 	rpcFile, err := serverFile.GenerateRPCFile()
 	if err != nil {
@@ -175,10 +195,14 @@ func (s *TorrxferServer) QueryFunction(clientID string, file *net.RPCFile) (*net
 func (s *TorrxferServer) TransferFunction(clientID string, fileBytes []byte, blockSize uint32, currentOffset uint64) error {
 	file := s.isFileActive(clientID)
 	if file == nil {
-		err := errors.New("No file active for client")
+		err := errors.New("no file active for client")
 		common.LogErrorStack(err, clientID)
 		return err
 	}
+	file.Once.Do(func() {
+		file.currentSize = currentOffset
+		file.Signal()
+	})
 	file.writeChannel.Write(fileBytes)
 	return nil
 }
@@ -211,6 +235,18 @@ func (s *TorrxferServer) isFileActive(clientID string) *File {
 	return nil
 }
 
+func (s *TorrxferServer) configureSignals() chan bool {
+	sigs := make(chan os.Signal, 1)
+	done := make(chan bool, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		sig := <-sigs
+		log.Debug().Str("Signal", sig.String()).Msg("Received int")
+		done <- true
+	}()
+	return done
+}
+
 func (s *TorrxferServer) setActiveFile(clientID string, dbFileKey string, file *File) {
 	s.Lock()
 	defer s.Unlock()
@@ -218,7 +254,6 @@ func (s *TorrxferServer) setActiveFile(clientID string, dbFileKey string, file *
 	s.activeFiles[clientID] = file
 	// Start file listener thread
 	go s.startFileWriteThread(file, dbFileKey)
-	return
 }
 
 func (s *TorrxferServer) getFullServerFilePath(mediaPath, filename string) string {
@@ -242,10 +277,22 @@ func (s *TorrxferServer) startFileWriteThread(serverFile *File, dbFileKey string
 		return
 	}
 	defer fileHandle.Close()
+
+	// Lock file on filesystem for writing
 	serverFile.mux.Lock()
 	defer serverFile.mux.Unlock()
 
-	_, err = fileHandle.Seek(int64(serverFile.currentSize), 0)
+	// Wait for Transfer func to get called first and set offset
+	serverFile.L.Lock()
+	serverFile.Wait()
+	serverFile.L.Unlock()
+
+	err = func() error {
+		serverFile.RLock()
+		defer serverFile.RUnlock()
+		_, err = fileHandle.Seek(int64(serverFile.currentSize), 0)
+		return err
+	}()
 	if err != nil {
 		common.LogErrorStack(err, "Could not seek file to specified location")
 		serverFile.errorChannel <- err
