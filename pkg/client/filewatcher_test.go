@@ -128,7 +128,7 @@ func TestNotifyNewFile(t *testing.T) {
 
 	// Test timeout 20 seconds
 	totalErr = errors.New("failed after timer expire")
-	time.AfterFunc(20*time.Second, func() {
+	timer := time.AfterFunc(20*time.Second, func() {
 		fw.Close()
 	})
 
@@ -176,9 +176,9 @@ func TestResetTimerOnNewWrite(t *testing.T) {
 	waitC := make(chan struct{})
 	defer close(waitC)
 
-	// Test timeout 20 seconds
+	// Test timeout 60 seconds
 	totalErr := errors.New("failed after timer expire")
-	time.AfterFunc(30*time.Second, func() {
+	timer := time.AfterFunc(1*time.Minute, func() {
 		fw.Close()
 	})
 
