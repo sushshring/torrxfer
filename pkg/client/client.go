@@ -28,6 +28,7 @@ type torrxferClient struct {
 	notificationChannels []chan ServerNotification
 	fileStoredDbs        []FileWatcher
 	jobQueue             chan<- ServerTransferJob
+	clientConfig         *common.ClientConfig
 	sync.RWMutex
 }
 
@@ -75,6 +76,7 @@ func (c *torrxferClient) Run(config *os.File) error {
 			log.Error().Stack().Err(err).Str("Directory: ", dir.Directory).Msg("Could not watch directory")
 		}
 	}
+	c.clientConfig = &clientConfig
 
 	// Create job queue
 	jobQueue := make(chan ServerTransferJob, 100)
@@ -196,6 +198,11 @@ func (c *torrxferClient) transferToServers(file *File) {
 					fallthrough
 				case ConnectionNotificationTypeTransferError:
 					c.jobQueue <- transferJob
+				case ConnectionNotificationTypeCompleted:
+					if c.clientConfig.DeleteOnComplete {
+						os.Remove(notification.SentFile.Path)
+					}
+					fallthrough
 				// Pipe other notifications to subscribers
 				default:
 					for _, subscriber := range c.notificationChannels {

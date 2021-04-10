@@ -37,13 +37,13 @@ func NewRPCTorrxferServer(torrxferServer ITorrxferServer) (server *RPCTorrxferSe
 func (*RPCTorrxferServer) validateIncomingRequest(ctx context.Context) (clientID string, err error) {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
-		err := errors.New("Failed to get file metadata. Invalid argument")
+		err := errors.New("failed to get file metadata. Invalid argument")
 		log.Debug().Err(err).Msg("")
 		return "", err
 	}
 	clientIds, ok := md["clientdata"]
 	if !ok {
-		err := errors.New("Client data not provided in request")
+		err := errors.New("client data not provided in request")
 		log.Debug().Err(err).Msg("")
 		return "", err
 	}
@@ -63,14 +63,14 @@ func (s *RPCTorrxferServer) TransferFile(stream pb.RpcTorrxferServer_TransferFil
 		fileReq, err := stream.Recv()
 		if err == io.EOF {
 			// Finished receiving file
-			log.Debug().Msg("File finished")
+			log.Trace().Msg("File finished")
 			s.server.Close(clientID)
 			return nil
 		} else if err != nil {
 			common.LogErrorStack(err, "Error receiving transfer request")
 			return err
 		}
-		log.Debug().Bytes("File data", fileReq.Data).Str("Client ID", clientID).Msg("Received transfer file data")
+		log.Trace().Bytes("File data", fileReq.Data).Str("Client ID", clientID).Msg("Received transfer file data")
 		err = s.server.TransferFunction(clientID, fileReq.GetData(), fileReq.GetSize(), fileReq.GetOffset())
 		if err != nil {
 			common.LogErrorStack(err, "Failed to write file data")
@@ -79,10 +79,10 @@ func (s *RPCTorrxferServer) TransferFile(stream pb.RpcTorrxferServer_TransferFil
 
 		select {
 		case err := <-errorChan:
-			log.Debug().Err(err).Msg("Error while writing")
+			log.Info().Err(err).Msg("Error while writing")
 			return err
-		case _ = <-doneChan:
-			log.Debug().Msg("File transfer finished")
+		case <-doneChan:
+			log.Info().Msg("File transfer finished")
 			return nil
 		default:
 			// no-op
@@ -92,7 +92,7 @@ func (s *RPCTorrxferServer) TransferFile(stream pb.RpcTorrxferServer_TransferFil
 
 // QueryFile wrapper around gRPC query file. Called by gRPC, should not be called directly
 func (s *RPCTorrxferServer) QueryFile(ctx context.Context, file *pb.File) (*pb.File, error) {
-	log.Debug().Str("File name", file.Name).Msg("Received file transfer request")
+	log.Info().Str("File name", file.Name).Msg("Received file transfer request")
 	clientID, err := s.validateIncomingRequest(ctx)
 	if err != nil {
 		return nil, err

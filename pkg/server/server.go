@@ -90,11 +90,11 @@ func (s *TorrxferServer) QueryFunction(clientID string, file *net.RPCFile) (*net
 	// Three cases:
 	// Brand new file
 	if !s.fileDb.Has(file.GetDataHash()) {
-		log.Debug().Str("File name", file.GetFileName()).Msg("File not found in DB")
+		log.Trace().Str("File name", file.GetFileName()).Msg("File not found in DB")
 
 		// If a file with the name exists, remove it
 		if _, err := os.Stat(s.getFullServerFilePath(file.GetMediaPath(), file.GetFileName())); err == nil {
-			log.Debug().Err(err).Msg("File exists. Removing now")
+			log.Trace().Err(err).Msg("File exists. Removing now")
 			if err := os.Remove(s.getFullServerFilePath(file.GetMediaPath(), file.GetFileName())); err != nil {
 				common.LogErrorStack(err, "File exists but could not remove")
 				return nil, err
@@ -131,17 +131,17 @@ func (s *TorrxferServer) QueryFunction(clientID string, file *net.RPCFile) (*net
 		return serverFile.GenerateRPCFile()
 	}
 
-	log.Debug().Str("File name", file.GetFileName()).Msg("File found in DB")
+	log.Trace().Str("File name", file.GetFileName()).Msg("File found in DB")
 	// File is either in transit or fully transferred
 	currentFile := new(File)
 	currentFileData, err := s.fileDb.Get(file.GetDataHash())
 	if err != nil {
-		log.Debug().Err(err).Msg("Could not get current file details, but file exists")
+		log.Trace().Err(err).Msg("Could not get current file details, but file exists")
 		return nil, err
 	}
-	log.Debug().Str("DB file data", currentFileData).Msg("Retrieved file data from DB")
+	log.Trace().Str("DB file data", currentFileData).Msg("Retrieved file data from DB")
 	if err = currentFile.UnmarshalText([]byte(currentFileData)); err != nil {
-		log.Debug().Err(err).Msg("Could not unmarshal file details")
+		log.Trace().Err(err).Msg("Could not unmarshal file details")
 		// Something funky happened when this file was last written. Best effort delete from db and return error
 		// Let client retry the file transfer later
 		s.fileDb.Delete(file.GetDataHash())
@@ -153,7 +153,7 @@ func (s *TorrxferServer) QueryFunction(clientID string, file *net.RPCFile) (*net
 	var modifiedTime time.Time
 
 	if err != nil {
-		log.Debug().Err(err).Msg("Could not stat existing file")
+		log.Trace().Err(err).Msg("Could not stat existing file")
 		fileSize = 0
 		modifiedTime = time.Unix(0, 0)
 	} else {
@@ -241,7 +241,7 @@ func (s *TorrxferServer) configureSignals() chan bool {
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		sig := <-sigs
-		log.Debug().Str("Signal", sig.String()).Msg("Received int")
+		log.Trace().Str("Signal", sig.String()).Msg("Received int")
 		done <- true
 	}()
 	return done
@@ -261,7 +261,7 @@ func (s *TorrxferServer) getFullServerFilePath(mediaPath, filename string) strin
 }
 
 func (s *TorrxferServer) startFileWriteThread(serverFile *File, dbFileKey string) {
-	log.Debug().Str("Name", serverFile.fullPath).Msg("Starting writer thread")
+	log.Trace().Str("Name", serverFile.fullPath).Msg("Starting writer thread")
 	defer close(serverFile.errorChannel)
 	defer close(serverFile.doneChannel)
 

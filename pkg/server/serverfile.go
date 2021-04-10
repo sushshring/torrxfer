@@ -92,7 +92,7 @@ func (f *File) UnmarshalText(text []byte) error {
 	textString := string(text)
 	tokens := strings.Split(textString, delimiter)
 	if len(tokens) != 6 {
-		err := errors.New("Not enough tokens in provided text")
+		err := errors.New("not enough tokens in provided text")
 		log.Error().Strs("tokens", tokens).Msg("Error while unmarshalling")
 		return err
 	}
