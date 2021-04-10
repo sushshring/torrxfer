@@ -5,15 +5,19 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog/log"
 	"github.com/sushshring/torrxfer/pkg/common"
+	"github.com/sushshring/torrxfer/pkg/crypto"
 	pb "github.com/sushshring/torrxfer/rpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/oauth"
+	"google.golang.org/grpc/encoding/gzip"
+	_ "google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -63,21 +67,27 @@ func NewTorrxferServerConnection(server common.ServerConnectionConfig) (Torrxfer
 	var opts []grpc.DialOption
 	if server.UseTLS {
 		certPool := x509.NewCertPool()
-		certPool.AddCert(server.CertFile)
+		valid, cert, _ := crypto.VerifyCert(server.CertFile, server.Address)
+		if !valid {
+			log.Debug().Msg("Cert could not be validted. Continuing anyway for now")
+		}
+		if cert != nil {
+			certPool.AddCert(cert)
+		}
 
 		creds := credentials.NewClientTLSFromCert(certPool, server.Address)
 		opts = append(opts, grpc.WithTransportCredentials(creds))
-
-		cred, err := oauth.NewApplicationDefault(context.Background(), transferFileOauthCredentialScope)
+		perRPCCred, err := oauth.NewServiceAccountFromFile(server.OAuthFile, transferFileOauthCredentialScope)
 		if err != nil {
-			log.Debug().Err(err).Msg("Could not create OAuth credential")
+			common.LogErrorStack(err, "Failed to initialize auth cred")
 			return nil, err
 		}
-		opts = append(opts, grpc.WithPerRPCCredentials(cred))
+		opts = append(opts, grpc.WithPerRPCCredentials(perRPCCred))
 	} else {
 		opts = append(opts, grpc.WithInsecure())
 	}
-	opts = append(opts, grpc.WithBlock())
+	opts = append(opts, grpc.WithBlock(), grpc.WithDefaultCallOptions(grpc.UseCompressor(gzip.Name)))
+	grpc.EnableTracing = true
 	conn, err := grpc.Dial(address, opts...)
 	if err != nil {
 		log.Debug().Err(err).Msg("Could not grpc dial")
@@ -90,7 +100,8 @@ func NewTorrxferServerConnection(server common.ServerConnectionConfig) (Torrxfer
 
 // QueryFile makes a gRPC call to the provided server and either returns a file summary or FileNotFoundException
 func (client *torrxferServerConnection) QueryFile(filePath string, mediaPrefix string, correlationUUID string) (*RPCFile, error) {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 	file, err := NewFile(filePath)
 	if err := file.SetMediaPath(mediaPrefix); err != nil {
 		common.LogError(err, "Could not set media prefix")
@@ -131,7 +142,7 @@ func (client *torrxferServerConnection) TransferFile(fileBytes *io.PipeReader, b
 			n, err := fileBytes.Read(bytes)
 			if err != nil {
 				if err == io.EOF {
-					log.Debug().Msg("Finished reading")
+					log.Trace().Msg("Finished reading")
 					break
 				}
 				log.Debug().Err(err).Msg("Failure while reading")
@@ -143,7 +154,7 @@ func (client *torrxferServerConnection) TransferFile(fileBytes *io.PipeReader, b
 				}
 				return
 			}
-			log.Debug().Int("size", n).Bytes("data", bytes).Msg("Sending file bytes")
+			log.Trace().Int("size", n).Bytes("data", bytes).Msg("Sending file bytes")
 			internalErr := stream.Send(&pb.TransferFileRequest{
 				Data:   bytes[:n],
 				Size:   uint32(n),

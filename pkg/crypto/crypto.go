@@ -29,6 +29,16 @@ func HashFile(filepath string) (string, error) {
 	return fmt.Sprintf("%x", sum), nil
 }
 
+func HashReader(reader io.Reader) (string, error) {
+	hash := sha256.New()
+	if _, err := io.Copy(hash, reader); err != nil {
+		common.LogError(err, "Could not copy file contexts")
+		return "", err
+	}
+	sum := hash.Sum(nil)
+	return fmt.Sprintf("%x", sum), nil
+}
+
 // Hash hashes the provided key
 func Hash(key string) (string, error) {
 	hash := sha256.New()
@@ -68,7 +78,7 @@ func VerifyCert(filepath string, hostname string) (bool, *x509.Certificate, erro
 
 	if _, err := cert.Verify(opts); err != nil {
 		common.LogError(err, "Failed to verify certificate")
-		return false, nil, err
+		return false, cert, err
 	}
 	return true, cert, nil
 }

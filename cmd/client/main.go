@@ -3,8 +3,12 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"sync"
+	"time"
 
 	"github.com/alecthomas/kingpin"
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	torrxfer "github.com/sushshring/torrxfer/pkg/client"
 	"github.com/sushshring/torrxfer/pkg/common"
@@ -20,17 +24,36 @@ var (
 	version = "0.1"
 )
 
+type barDetails struct {
+	bar       *mpb.Bar
+	startTime time.Time
+	lastTime  time.Time
+	once      sync.Once
+	done      chan struct{}
+}
+
 func main() {
 	app.Version(version)
 	kingpin.MustParse(app.Parse(os.Args[1:]))
-	common.ConfigureLogging(*debug, false, nil)
+	var level zerolog.Level
+	if *debug {
+		level = zerolog.DebugLevel
+	} else {
+		level = zerolog.InfoLevel
+	}
+	common.ConfigureLogging(level, false, os.Stderr)
 
 	log.Debug().Msg("Starting the Torrxfer client")
 
 	client := torrxfer.NewTorrxferClient()
 	err := client.Run(*config)
 
-	progressBarMap := make(map[string]*mpb.Bar)
+	if err != nil {
+		log.Info().Err(err).Msg("Failed to launch client")
+		os.Exit(-1)
+	}
+
+	progressBarMap := make(map[string]*barDetails)
 	p := mpb.New(nil)
 
 	for notification := range client.RegisterForConnectionNotifications() {
@@ -40,30 +63,41 @@ func main() {
 		case torrxfer.ConnectionNotificationTypeDisconnected:
 			log.Info().Object("Server", notification.Connection).Msg("Disconnected")
 		case torrxfer.ConnectionNotificationTypeQueryError:
-			log.Info().Object("Server", notification.Connection).Object("File", notification.SentFile).Msg("Query Error")
+			fallthrough
+		case torrxfer.ConnectionNotificationTypeTransferError:
+			log.Error().Err(notification.Error).Object("Server", notification.Connection).Object("File", notification.SentFile).Msg("Error")
 		case torrxfer.ConnectionNotificationTypeFilesUpdated:
 			if progressBar, ok := progressBarMap[notification.SentFile.Path]; !ok {
 				bar := p.Add(int64(notification.SentFile.Size),
 					mpb.NewBarFiller("[=>-|"),
 					mpb.PrependDecorators(
-						decor.Name(fmt.Sprintf("Transferring file. Path: %s", notification.SentFile.Path)),
-						decor.CountersKibiByte("% .2f / % .2f"),
+						decor.Name(fmt.Sprintf("Transferring file. Name: %s | ", filepath.Base(notification.SentFile.Path))),
+						decor.CountersKiloByte("% .2f / % .2f"),
 					),
 					mpb.AppendDecorators(
-						decor.EwmaETA(decor.ET_STYLE_GO, 90),
+						decor.EwmaETA(decor.ET_STYLE_GO, 60),
 						decor.Name(" ] "),
-						decor.EwmaSpeed(decor.UnitKiB, "% .2f", 60),
+						decor.EwmaSpeed(decor.UnitKiB, "% .2f ", 60),
+						decor.OnComplete(
+							// ETA decorator with ewma age of 60
+							decor.Elapsed(decor.ET_STYLE_GO), "done",
+						),
 					),
 				)
-				progressBarMap[notification.SentFile.Path] = bar
+				bar.SetCurrent(int64(notification.Connection.GetFileSizeOnServer(notification.SentFile.Path)))
+				progressBarMap[notification.SentFile.Path] = &barDetails{
+					bar:       bar,
+					startTime: time.Time{},
+					lastTime:  time.Time{},
+					once:      sync.Once{},
+					done:      make(chan struct{}),
+				}
 			} else {
-				progressBar.IncrBy(int(notification.Connection.GetFileSizeOnServer(notification.SentFile.Path)))
+				progressBar.bar.IncrInt64(int64(notification.LastSentSize))
+				progressBar.bar.DecoratorEwmaUpdate(time.Since(progressBar.lastTime))
+				progressBar.lastTime = time.Now()
 			}
 			log.Info().Object("Server", notification.Connection)
 		}
 	}
-	if err != nil {
-		os.Exit(-1)
-	}
-	// internal.StartUI(client)
 }

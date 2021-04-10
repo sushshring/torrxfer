@@ -8,7 +8,18 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/sushshring/torrxfer/pkg/common"
 	pb "github.com/sushshring/torrxfer/rpc"
+	"google.golang.org/api/oauth2/v2"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
+)
+
+var (
+	errMissingMetadata = status.Errorf(codes.InvalidArgument, "missing metadata")
+	errInvalidToken    = status.Errorf(codes.Unauthenticated, "invalid token")
+	errTransferRequest = status.Errorf(codes.Internal, "internal error on transfer")
+	errQueryRequest    = status.Errorf(codes.Internal, "internal error on query")
 )
 
 // ITorrxferServer Server interface representation for client
@@ -34,18 +45,71 @@ func NewRPCTorrxferServer(torrxferServer ITorrxferServer) (server *RPCTorrxferSe
 	return
 }
 
-func (*RPCTorrxferServer) validateIncomingRequest(ctx context.Context) (clientID string, err error) {
+func EnsureValidTokenStream(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	md, ok := metadata.FromIncomingContext(ss.Context())
+	if !ok {
+		return errMissingMetadata
+	}
+	if !validateTokenFromMetadata(md) {
+		return errInvalidToken
+	}
+	return handler(srv, ss)
+}
+
+func EnsureValidToken(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
-		err := errors.New("Failed to get file metadata. Invalid argument")
+		return nil, errMissingMetadata
+	}
+	if !validateTokenFromMetadata(md) {
+		return nil, errInvalidToken
+	}
+	// Continue execution of handler after ensuring a valid token.
+	return handler(ctx, req)
+}
+
+func validateTokenFromMetadata(md metadata.MD) bool {
+	// The keys within metadata.MD are normalized to lowercase.
+	// See: https://godoc.org/google.golang.org/grpc/metadata#New
+	f, ok := md["authorization"]
+	if !ok {
+		return false
+	}
+	return validateToken(f)
+}
+
+func validateToken(authorization []string) bool {
+	if len(authorization) < 1 {
+		return false
+	}
+	oauth2Service, err := oauth2.NewService(context.Background())
+	if err != nil {
+		common.LogErrorStack(err, "Could not create oauth service")
+		return false
+	}
+	tokenInfoCall := oauth2Service.Tokeninfo()
+	tokenInfoCall.AccessToken(authorization[0])
+	tokenInfo, err := tokenInfoCall.Do()
+	if err != nil {
+		common.LogErrorStack(err, "Could not validate token")
+		return false
+	}
+	log.Info().Str("Granted scope", tokenInfo.Scope).Msg("Validated request")
+	return true
+}
+
+func (s *RPCTorrxferServer) validateIncomingRequest(ctx context.Context) (clientID string, err error) {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		err := errors.New("failed to get file metadata. Invalid argument")
 		log.Debug().Err(err).Msg("")
-		return "", err
+		return "", errMissingMetadata
 	}
 	clientIds, ok := md["clientdata"]
 	if !ok {
-		err := errors.New("Client data not provided in request")
+		err := errors.New("client data not provided in request")
 		log.Debug().Err(err).Msg("")
-		return "", err
+		return "", errMissingMetadata
 	}
 	clientID = clientIds[0]
 	err = nil
@@ -58,31 +122,31 @@ func (s *RPCTorrxferServer) TransferFile(stream pb.RpcTorrxferServer_TransferFil
 	if err != nil {
 		return err
 	}
+	defer s.server.Close(clientID)
 	errorChan, doneChan := s.server.RegisterForWriteNotification(clientID)
 	for {
 		fileReq, err := stream.Recv()
 		if err == io.EOF {
 			// Finished receiving file
-			log.Debug().Msg("File finished")
-			s.server.Close(clientID)
+			log.Trace().Msg("File finished")
 			return nil
 		} else if err != nil {
 			common.LogErrorStack(err, "Error receiving transfer request")
-			return err
+			return errTransferRequest
 		}
-		log.Debug().Bytes("File data", fileReq.Data).Str("Client ID", clientID).Msg("Received transfer file data")
+		log.Trace().Bytes("File data", fileReq.Data).Str("Client ID", clientID).Msg("Received transfer file data")
 		err = s.server.TransferFunction(clientID, fileReq.GetData(), fileReq.GetSize(), fileReq.GetOffset())
 		if err != nil {
 			common.LogErrorStack(err, "Failed to write file data")
-			return err
+			return errTransferRequest
 		}
 
 		select {
 		case err := <-errorChan:
-			log.Debug().Err(err).Msg("Error while writing")
-			return err
-		case _ = <-doneChan:
-			log.Debug().Msg("File transfer finished")
+			log.Info().Err(err).Msg("Error while writing")
+			return errTransferRequest
+		case <-doneChan:
+			log.Info().Msg("File transfer finished")
 			return nil
 		default:
 			// no-op
@@ -92,16 +156,16 @@ func (s *RPCTorrxferServer) TransferFile(stream pb.RpcTorrxferServer_TransferFil
 
 // QueryFile wrapper around gRPC query file. Called by gRPC, should not be called directly
 func (s *RPCTorrxferServer) QueryFile(ctx context.Context, file *pb.File) (*pb.File, error) {
-	log.Debug().Str("File name", file.Name).Msg("Received file transfer request")
+	log.Info().Str("File name", file.Name).Msg("Received file transfer request")
 	clientID, err := s.validateIncomingRequest(ctx)
 	if err != nil {
-		return nil, err
+		return nil, errQueryRequest
 	}
 	rpcFile := NewFileFromGrpc(file)
 	rpcFile, err = s.server.QueryFunction(clientID, rpcFile)
 	if err != nil {
 		log.Debug().Err(err).Msg("Server query failed")
-		return nil, err
+		return nil, errQueryRequest
 	}
 	return rpcFile.file, nil
 }

@@ -13,3 +13,5 @@ vendor/**/*
 rpc/
 protoc-*.zip
 .vscode/
+trial/personal-hosting-235201-911e942be204.json
+client.test

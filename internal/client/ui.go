@@ -2,10 +2,12 @@ package internal
 
 import (
 	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"sync"
 
@@ -378,19 +380,31 @@ func connectServer() {
 		} else {
 			useTLS = addServerForm.GetFormItemByLabel(useTLSLabel).(*tview.CheckBox).IsChecked()
 		}
+		certfilePath := filepath.Join(os.TempDir(), "torrxfercert.pem")
 
 		if useTLS {
 			// Invalid state as cert file should be valid or verified from network call
 			if certData == nil {
 				log.Fatal().Msg("Illegal state. Cert was validated but then not found????")
 			}
+			certOut, err := os.Create(certfilePath)
+			if err != nil {
+				log.Fatal().Err(err).Msg("Failed to open cert.pem for writing")
+			}
+			if err := pem.Encode(certOut, &pem.Block{Type: "CERTIFICATE", Bytes: certData.Raw}); err != nil {
+				log.Fatal().Err(err).Msg("Failed to write data to .pem")
+			}
+			if err := certOut.Close(); err != nil {
+				log.Fatal().Err(err).Msg("Error cloing .pem")
+			}
+
 		}
 
 		server := common.ServerConnectionConfig{
 			Address:  addServerForm.GetFormItemByLabel(serverAddressLabel).(*tview.InputField).GetText(),
 			Port:     uint32(port),
 			UseTLS:   useTLS,
-			CertFile: certData,
+			CertFile: certfilePath,
 		}
 
 		log.Debug().Str("", fmt.Sprintf("Addr: %s, port: %d, tls: %t", server.Address, server.Port, server.UseTLS)).Msg("Attempting to connect to")

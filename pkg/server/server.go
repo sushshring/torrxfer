@@ -6,8 +6,10 @@ import (
 	"io"
 	gnet "net"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/juju/fslock"
@@ -18,6 +20,7 @@ import (
 	pb "github.com/sushshring/torrxfer/rpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	_ "google.golang.org/grpc/encoding/gzip"
 )
 
 // TorrxferServer server struct
@@ -34,7 +37,7 @@ const (
 
 // RunServer starts the server
 func RunServer(serverConf common.ServerConfig, enableTLS bool, cafilePath, keyfilePath string) *TorrxferServer {
-	lis, err := gnet.Listen("tcp", fmt.Sprintf("localhost:%d", serverConf.Port))
+	lis, err := gnet.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", serverConf.Port))
 	if err != nil {
 		log.Fatal().Err(err).Msg("Could not start server")
 	}
@@ -57,6 +60,9 @@ func RunServer(serverConf common.ServerConfig, enableTLS bool, cafilePath, keyfi
 			log.Fatal().Err(err).Msg("Failed to generate credentials")
 		}
 		opts = []grpc.ServerOption{grpc.Creds(creds)}
+
+		grpc.ChainStreamInterceptor(net.EnsureValidTokenStream)
+		grpc.ChainUnaryInterceptor(net.EnsureValidToken)
 	}
 
 	db, err := db.GetDb(serverDbName)
@@ -71,7 +77,15 @@ func RunServer(serverConf common.ServerConfig, enableTLS bool, cafilePath, keyfi
 	}
 	rpcserver := net.NewRPCTorrxferServer(server)
 	pb.RegisterRpcTorrxferServerServer(grpcServer, rpcserver)
-	grpcServer.Serve(lis)
+	grpc.EnableTracing = true
+	doneChan := server.configureSignals()
+	go grpcServer.Serve(lis)
+	<-doneChan
+	grpcServer.Stop()
+	for activeClient := range server.activeFiles {
+		server.Close(activeClient)
+	}
+	server.fileDb.Close()
 	return server
 }
 
@@ -80,11 +94,11 @@ func (s *TorrxferServer) QueryFunction(clientID string, file *net.RPCFile) (*net
 	// Three cases:
 	// Brand new file
 	if !s.fileDb.Has(file.GetDataHash()) {
-		log.Debug().Str("File name", file.GetFileName()).Msg("File not found in DB")
+		log.Trace().Str("File name", file.GetFileName()).Msg("File not found in DB")
 
 		// If a file with the name exists, remove it
 		if _, err := os.Stat(s.getFullServerFilePath(file.GetMediaPath(), file.GetFileName())); err == nil {
-			log.Debug().Err(err).Msg("File exists. Removing now")
+			log.Trace().Err(err).Msg("File exists. Removing now")
 			if err := os.Remove(s.getFullServerFilePath(file.GetMediaPath(), file.GetFileName())); err != nil {
 				common.LogErrorStack(err, "File exists but could not remove")
 				return nil, err
@@ -100,11 +114,16 @@ func (s *TorrxferServer) QueryFunction(clientID string, file *net.RPCFile) (*net
 			currentSize:  0,
 			creationTime: time.Now(),
 			modifiedTime: time.Now(),
-			readChannel:  readChan,
 			writeChannel: writeChan,
+			readChannel:  readChan,
 			errorChannel: make(chan error, 1),
 			doneChannel:  make(chan struct{}, 1),
 			mux:          fslock.Lock{},
+			Cond: sync.Cond{
+				L: &sync.RWMutex{},
+			},
+			RWMutex: sync.RWMutex{},
+			Once:    sync.Once{},
 		}
 		bytes, err := serverFile.MarshalText()
 		if err != nil {
@@ -116,17 +135,17 @@ func (s *TorrxferServer) QueryFunction(clientID string, file *net.RPCFile) (*net
 		return serverFile.GenerateRPCFile()
 	}
 
-	log.Debug().Str("File name", file.GetFileName()).Msg("File found in DB")
+	log.Trace().Str("File name", file.GetFileName()).Msg("File found in DB")
 	// File is either in transit or fully transferred
 	currentFile := new(File)
 	currentFileData, err := s.fileDb.Get(file.GetDataHash())
 	if err != nil {
-		log.Debug().Err(err).Msg("Could not get current file details, but file exists")
+		log.Trace().Err(err).Msg("Could not get current file details, but file exists")
 		return nil, err
 	}
-	log.Debug().Str("DB file data", currentFileData).Msg("Retrieved file data from DB")
+	log.Trace().Str("DB file data", currentFileData).Msg("Retrieved file data from DB")
 	if err = currentFile.UnmarshalText([]byte(currentFileData)); err != nil {
-		log.Debug().Err(err).Msg("Could not unmarshal file details")
+		log.Trace().Err(err).Msg("Could not unmarshal file details")
 		// Something funky happened when this file was last written. Best effort delete from db and return error
 		// Let client retry the file transfer later
 		s.fileDb.Delete(file.GetDataHash())
@@ -138,7 +157,7 @@ func (s *TorrxferServer) QueryFunction(clientID string, file *net.RPCFile) (*net
 	var modifiedTime time.Time
 
 	if err != nil {
-		log.Debug().Err(err).Msg("Could not stat existing file")
+		log.Trace().Err(err).Msg("Could not stat existing file")
 		fileSize = 0
 		modifiedTime = time.Unix(0, 0)
 	} else {
@@ -153,11 +172,16 @@ func (s *TorrxferServer) QueryFunction(clientID string, file *net.RPCFile) (*net
 		currentSize:  uint64(fileSize),
 		creationTime: file.GetCreationTime(),
 		modifiedTime: modifiedTime,
-		readChannel:  readChan,
 		writeChannel: writeChan,
+		readChannel:  readChan,
 		errorChannel: make(chan error, 1),
 		doneChannel:  make(chan struct{}, 1),
 		mux:          fslock.Lock{},
+		Cond: sync.Cond{
+			L: &sync.RWMutex{},
+		},
+		RWMutex: sync.RWMutex{},
+		Once:    sync.Once{},
 	}
 	rpcFile, err := serverFile.GenerateRPCFile()
 	if err != nil {
@@ -175,10 +199,14 @@ func (s *TorrxferServer) QueryFunction(clientID string, file *net.RPCFile) (*net
 func (s *TorrxferServer) TransferFunction(clientID string, fileBytes []byte, blockSize uint32, currentOffset uint64) error {
 	file := s.isFileActive(clientID)
 	if file == nil {
-		err := errors.New("No file active for client")
+		err := errors.New("no file active for client")
 		common.LogErrorStack(err, clientID)
 		return err
 	}
+	file.Once.Do(func() {
+		file.currentSize = currentOffset
+		file.Signal()
+	})
 	file.writeChannel.Write(fileBytes)
 	return nil
 }
@@ -211,6 +239,18 @@ func (s *TorrxferServer) isFileActive(clientID string) *File {
 	return nil
 }
 
+func (s *TorrxferServer) configureSignals() chan bool {
+	sigs := make(chan os.Signal, 1)
+	done := make(chan bool, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		sig := <-sigs
+		log.Trace().Str("Signal", sig.String()).Msg("Received int")
+		done <- true
+	}()
+	return done
+}
+
 func (s *TorrxferServer) setActiveFile(clientID string, dbFileKey string, file *File) {
 	s.Lock()
 	defer s.Unlock()
@@ -218,7 +258,6 @@ func (s *TorrxferServer) setActiveFile(clientID string, dbFileKey string, file *
 	s.activeFiles[clientID] = file
 	// Start file listener thread
 	go s.startFileWriteThread(file, dbFileKey)
-	return
 }
 
 func (s *TorrxferServer) getFullServerFilePath(mediaPath, filename string) string {
@@ -226,7 +265,7 @@ func (s *TorrxferServer) getFullServerFilePath(mediaPath, filename string) strin
 }
 
 func (s *TorrxferServer) startFileWriteThread(serverFile *File, dbFileKey string) {
-	log.Debug().Str("Name", serverFile.fullPath).Msg("Starting writer thread")
+	log.Trace().Str("Name", serverFile.fullPath).Msg("Starting writer thread")
 	defer close(serverFile.errorChannel)
 	defer close(serverFile.doneChannel)
 
@@ -242,10 +281,22 @@ func (s *TorrxferServer) startFileWriteThread(serverFile *File, dbFileKey string
 		return
 	}
 	defer fileHandle.Close()
+
+	// Lock file on filesystem for writing
 	serverFile.mux.Lock()
 	defer serverFile.mux.Unlock()
 
-	_, err = fileHandle.Seek(int64(serverFile.currentSize), 0)
+	// Wait for Transfer func to get called first and set offset
+	serverFile.L.Lock()
+	serverFile.Wait()
+	serverFile.L.Unlock()
+
+	err = func() error {
+		serverFile.RLock()
+		defer serverFile.RUnlock()
+		_, err = fileHandle.Seek(int64(serverFile.currentSize), 0)
+		return err
+	}()
 	if err != nil {
 		common.LogErrorStack(err, "Could not seek file to specified location")
 		serverFile.errorChannel <- err

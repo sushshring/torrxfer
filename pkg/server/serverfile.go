@@ -6,6 +6,7 @@ import (
 	"io"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/juju/fslock"
@@ -29,6 +30,9 @@ type File struct {
 	errorChannel chan error
 	doneChannel  chan struct{}
 	mux          fslock.Lock
+	sync.Cond
+	sync.RWMutex
+	sync.Once
 }
 
 func (f *File) getStrings() (stringReprs []string) {
@@ -65,7 +69,7 @@ func (f *File) MarshalText() (text []byte, err error) {
 	err = nil
 	stringRepr := f.getStrings()
 	if stringRepr == nil {
-		err = errors.New("Failed to marshal file object")
+		err = errors.New("failed to marshal file object")
 		return nil, err
 	}
 	var marshalSize int
@@ -88,7 +92,7 @@ func (f *File) UnmarshalText(text []byte) error {
 	textString := string(text)
 	tokens := strings.Split(textString, delimiter)
 	if len(tokens) != 6 {
-		err := errors.New("Not enough tokens in provided text")
+		err := errors.New("not enough tokens in provided text")
 		log.Error().Strs("tokens", tokens).Msg("Error while unmarshalling")
 		return err
 	}

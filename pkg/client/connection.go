@@ -24,6 +24,8 @@ const (
 	ConnectionNotificationTypeQueryError
 	// ConnectionNotificationTypeTransferError Transfer error from server
 	ConnectionNotificationTypeTransferError
+	// ConnectionNotificationTypeFatalError Fatal transfer error
+	ConnectionNotificationTypeFatalError
 )
 
 // ConnectionNotificationStrings String representation of ConnectionNotificationType iota
@@ -42,6 +44,7 @@ type ServerNotification struct {
 	Error            error
 	Connection       *ServerConnection
 	SentFile         *File
+	LastSentSize     uint64
 }
 
 // ServerConnection contains all active data about a connection with a Torrxfer server
@@ -51,8 +54,8 @@ type ServerConnection struct {
 	port               uint32
 	connectionTime     time.Time
 	bytesTransferred   uint64
-	fileTransferStatus map[File]uint64
-	filesTransferred   map[string]File
+	fileTransferStatus map[*File]uint64
+	filesTransferred   map[string]*File
 	rpcConnection      net.TorrxferServerConnection
 
 	sync.RWMutex
@@ -65,8 +68,8 @@ func newServerConnection(index uint16, address string, port uint32, rpcConnectio
 		port:               port,
 		connectionTime:     time.Now(),
 		bytesTransferred:   0,
-		fileTransferStatus: map[File]uint64{},
-		filesTransferred:   map[string]File{},
+		fileTransferStatus: map[*File]uint64{},
+		filesTransferred:   map[string]*File{},
 		rpcConnection:      rpcConnection,
 	}
 	return serverConnection
@@ -113,10 +116,10 @@ func (s *ServerConnection) GetFileSizeOnServer(filename string) (fileSize uint64
 }
 
 // GetFilesTransferred returns the files transferred to the server in this session
-func (s *ServerConnection) GetFilesTransferred() (files []File) {
+func (s *ServerConnection) GetFilesTransferred() (files []*File) {
 	s.RLock()
 	defer s.RUnlock()
-	files = make([]File, len(s.filesTransferred))
+	files = make([]*File, len(s.filesTransferred))
 	for _, v := range s.filesTransferred {
 		files = append(files, v)
 	}
