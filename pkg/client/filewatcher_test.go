@@ -65,51 +65,45 @@ func TestNotifyCurrentFiles(t *testing.T) {
 	waitC := make(chan struct{})
 	defer close(waitC)
 
-	// Test timeout 5 minutes
-	timer := time.NewTimer(20 * time.Second)
-	go func() {
-		totalErr = errors.New("Failed after timer expire")
-		<-timer.C
+	// Test timeout 20 seconds
+	totalErr = errors.New("failed after timer expire")
+	time.AfterFunc(20*time.Second, func() {
 		fw.Close()
-	}()
+	})
 
 	// Let all files be added to the local db and
-	go func() {
-		files, err := ioutil.ReadDir(testWatchDirPath)
+	files, err := ioutil.ReadDir(testWatchDirPath)
+	if err != nil {
+		t.Error(err)
+		waitC <- struct{}{}
+		return
+	}
+	fileSet := set.New()
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+		t.Logf("Added file: %s", path.Join(testWatchDirPath, file.Name()))
+		cleanPath, err := common.CleanPath(path.Join(testWatchDirPath, file.Name()))
 		if err != nil {
 			t.Error(err)
-			waitC <- struct{}{}
-			return
 		}
-		fileSet := set.New()
-		for _, file := range files {
-			if file.IsDir() {
-				continue
-			}
-			t.Logf("Added file: %s", path.Join(testWatchDirPath, file.Name()))
-			cleanPath, err := common.CleanPath(path.Join(testWatchDirPath, file.Name()))
-			if err != nil {
-				t.Error(err)
-			}
-			fileSet.Insert(cleanPath)
+		fileSet.Insert(cleanPath)
+	}
+	for file := range fw.RegisterForFileNotifications() {
+		t.Logf("Got file: %s", file.Path)
+		if !fileSet.Has(file.Path) {
+			t.Errorf("Did not find file: %s", file.Path)
 		}
-		for file := range fw.RegisterForFileNotifications() {
-			t.Logf("Got file: %s", file.Path)
-			if !fileSet.Has(file.Path) {
-				t.Errorf("Did not find file: %s", file.Path)
-			}
-			fileSet.Remove(file.Path)
-			totalErr = nil
-		}
-		if fileSet.Len() != 0 {
-			fileSet.Do(func(element interface{}) {
-				t.Logf("File in set: %s", element)
-			})
-			t.Errorf("Did not find all files")
-		}
-		waitC <- struct{}{}
-	}()
-	<-waitC
+		fileSet.Remove(file.Path)
+		totalErr = nil
+	}
+	if fileSet.Len() != 0 {
+		fileSet.Do(func(element interface{}) {
+			t.Logf("File in set: %s", element)
+		})
+		t.Errorf("Did not find all files")
+	}
 	if totalErr != nil {
 		t.Error(totalErr)
 	}
@@ -132,14 +126,11 @@ func TestNotifyNewFile(t *testing.T) {
 	waitC := make(chan struct{})
 	defer close(waitC)
 
-	// Tst timeout 5 minutes
-	timer := time.NewTimer(20 * time.Second)
-	go func() {
-		totalErr = errors.New("There were no notifications")
-		<-timer.C
-		t.Log("Timer fired")
+	// Test timeout 20 seconds
+	totalErr = errors.New("failed after timer expire")
+	time.AfterFunc(20*time.Second, func() {
 		fw.Close()
-	}()
+	})
 
 	go func() {
 		time.Sleep(6 * time.Second)
@@ -154,20 +145,16 @@ func TestNotifyNewFile(t *testing.T) {
 	}()
 
 	// Let all files be added to the local db and
-	go func() {
-		for file := range fw.RegisterForFileNotifications() {
-			t.Logf("Got file: %s", file.Path)
-			testFilePath := filepath.Join(testWatchDirPath, testfileName)
-			if p, err := common.CleanPath(testFilePath); err != nil {
-				t.Error(err)
-			} else if p != file.Path {
-				t.Errorf("Expected path: %s, got file path: %s", p, file.Path)
-			}
-			totalErr = nil
+	for file := range fw.RegisterForFileNotifications() {
+		t.Logf("Got file: %s", file.Path)
+		testFilePath := filepath.Join(testWatchDirPath, testfileName)
+		if p, err := common.CleanPath(testFilePath); err != nil {
+			t.Error(err)
+		} else if p != file.Path {
+			t.Errorf("Expected path: %s, got file path: %s", p, file.Path)
 		}
-		waitC <- struct{}{}
-	}()
-	<-waitC
+		totalErr = nil
+	}
 	if totalErr != nil {
 		t.Error(totalErr)
 	}
@@ -189,13 +176,11 @@ func TestResetTimerOnNewWrite(t *testing.T) {
 	waitC := make(chan struct{})
 	defer close(waitC)
 
-	// Tst timeout 5 minutes
-	timer := time.NewTimer(30 * time.Second)
-	go func() {
-		<-timer.C
-		t.Log("Timer fired")
+	// Test timeout 20 seconds
+	totalErr := errors.New("failed after timer expire")
+	time.AfterFunc(30*time.Second, func() {
 		fw.Close()
-	}()
+	})
 
 	go func() {
 		time.Sleep(6 * time.Second)
@@ -236,5 +221,9 @@ func TestResetTimerOnNewWrite(t *testing.T) {
 			log.Error().Str("Expected", expectedContent).Str("Got", string(content)).Msg("Received non-matching content")
 			t.Error(errors.New("Content does not match"))
 		}
+		totalErr = nil
+	}
+	if totalErr != nil {
+		t.Error(totalErr)
 	}
 }
