@@ -110,6 +110,7 @@ func (w ServerTransferWorker) doFileTransferJob(job ServerTransferJob) {
 		job.ServerConnection.Lock()
 		defer job.ServerConnection.Unlock()
 		job.ServerConnection.filesTransferred[file.Path] = file
+		job.ServerConnection.fileTransferStatus[file] = offset
 	}()
 
 	go func(summaryChannel chan net.FileTransferNotification, server *ServerConnection, file *File) {

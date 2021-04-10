@@ -20,6 +20,7 @@ import (
 	pb "github.com/sushshring/torrxfer/rpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	_ "google.golang.org/grpc/encoding/gzip"
 )
 
 // TorrxferServer server struct
@@ -59,6 +60,9 @@ func RunServer(serverConf common.ServerConfig, enableTLS bool, cafilePath, keyfi
 			log.Fatal().Err(err).Msg("Failed to generate credentials")
 		}
 		opts = []grpc.ServerOption{grpc.Creds(creds)}
+
+		grpc.ChainStreamInterceptor(net.EnsureValidTokenStream)
+		grpc.ChainUnaryInterceptor(net.EnsureValidToken)
 	}
 
 	db, err := db.GetDb(serverDbName)

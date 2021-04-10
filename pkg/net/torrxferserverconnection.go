@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -15,6 +16,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/oauth"
+	"google.golang.org/grpc/encoding/gzip"
+	_ "google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -64,7 +67,7 @@ func NewTorrxferServerConnection(server common.ServerConnectionConfig) (Torrxfer
 	var opts []grpc.DialOption
 	if server.UseTLS {
 		certPool := x509.NewCertPool()
-		valid, cert, err := crypto.VerifyCert(server.CertFile, server.Address)
+		valid, cert, _ := crypto.VerifyCert(server.CertFile, server.Address)
 		if !valid {
 			log.Debug().Msg("Cert could not be validted. Continuing anyway for now")
 		}
@@ -83,7 +86,7 @@ func NewTorrxferServerConnection(server common.ServerConnectionConfig) (Torrxfer
 	} else {
 		opts = append(opts, grpc.WithInsecure())
 	}
-	opts = append(opts, grpc.WithBlock())
+	opts = append(opts, grpc.WithBlock(), grpc.WithDefaultCallOptions(grpc.UseCompressor(gzip.Name)))
 	grpc.EnableTracing = true
 	conn, err := grpc.Dial(address, opts...)
 	if err != nil {
@@ -97,7 +100,8 @@ func NewTorrxferServerConnection(server common.ServerConnectionConfig) (Torrxfer
 
 // QueryFile makes a gRPC call to the provided server and either returns a file summary or FileNotFoundException
 func (client *torrxferServerConnection) QueryFile(filePath string, mediaPrefix string, correlationUUID string) (*RPCFile, error) {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 	file, err := NewFile(filePath)
 	if err := file.SetMediaPath(mediaPrefix); err != nil {
 		common.LogError(err, "Could not set media prefix")

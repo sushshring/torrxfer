@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/alecthomas/kingpin"
@@ -27,6 +28,8 @@ type barDetails struct {
 	bar       *mpb.Bar
 	startTime time.Time
 	lastTime  time.Time
+	once      sync.Once
+	done      chan struct{}
 }
 
 func main() {
@@ -50,7 +53,7 @@ func main() {
 		os.Exit(-1)
 	}
 
-	progressBarMap := make(map[string]barDetails)
+	progressBarMap := make(map[string]*barDetails)
 	p := mpb.New(nil)
 
 	for notification := range client.RegisterForConnectionNotifications() {
@@ -69,24 +72,30 @@ func main() {
 					mpb.NewBarFiller("[=>-|"),
 					mpb.PrependDecorators(
 						decor.Name(fmt.Sprintf("Transferring file. Name: %s | ", filepath.Base(notification.SentFile.Path))),
-						decor.CountersKibiByte("% .2f / % .2f"),
+						decor.CountersKiloByte("% .2f / % .2f"),
 					),
 					mpb.AppendDecorators(
-						decor.EwmaETA(decor.ET_STYLE_GO, 90),
+						decor.EwmaETA(decor.ET_STYLE_GO, 60),
 						decor.Name(" ] "),
-						decor.EwmaSpeed(decor.UnitKiB, "% .2f", 60),
+						decor.EwmaSpeed(decor.UnitKiB, "% .2f ", 60),
 						decor.OnComplete(
 							// ETA decorator with ewma age of 60
-							decor.EwmaETA(decor.ET_STYLE_GO, 60), "done",
+							decor.Elapsed(decor.ET_STYLE_GO), "done",
 						),
 					),
 				)
-				progressBarMap[notification.SentFile.Path] = barDetails{bar, time.Now(), time.Now()}
+				bar.SetCurrent(int64(notification.Connection.GetFileSizeOnServer(notification.SentFile.Path)))
+				progressBarMap[notification.SentFile.Path] = &barDetails{
+					bar:       bar,
+					startTime: time.Time{},
+					lastTime:  time.Time{},
+					once:      sync.Once{},
+					done:      make(chan struct{}),
+				}
 			} else {
 				progressBar.bar.IncrInt64(int64(notification.LastSentSize))
 				progressBar.bar.DecoratorEwmaUpdate(time.Since(progressBar.lastTime))
 				progressBar.lastTime = time.Now()
-				progressBar.bar.DecoratorAverageAdjust(progressBar.startTime)
 			}
 			log.Info().Object("Server", notification.Connection)
 		}
