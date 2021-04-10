@@ -18,7 +18,8 @@ import (
 // const testFileDbName = "tfdb.dat"
 const testWatchDir = "testdir"
 
-func setup(createFiles bool) error {
+func setup(t *testing.T, createFiles bool) error {
+	t.Helper()
 	common.ConfigureLogging(zerolog.TraceLevel, true, os.Stdout)
 	tmpDir := os.TempDir()
 	testWatchDirPath := filepath.Join(tmpDir, testWatchDir)
@@ -51,7 +52,7 @@ func cleanup() {
 func TestNotifyCurrentFiles(t *testing.T) {
 	// Setup file watcher
 	var totalErr error
-	err := setup(true)
+	err := setup(t, true)
 	if err != nil {
 		t.Error(err)
 	}
@@ -112,7 +113,7 @@ func TestNotifyCurrentFiles(t *testing.T) {
 func TestNotifyNewFile(t *testing.T) {
 	const testfileName = "testfile"
 	var totalErr error
-	err := setup(false)
+	err := setup(t, false)
 	if err != nil {
 		t.Error(err)
 	}
@@ -128,7 +129,7 @@ func TestNotifyNewFile(t *testing.T) {
 
 	// Test timeout 20 seconds
 	totalErr = errors.New("failed after timer expire")
-	timer := time.AfterFunc(20*time.Second, func() {
+	time.AfterFunc(20*time.Second, func() {
 		fw.Close()
 	})
 
@@ -162,7 +163,7 @@ func TestNotifyNewFile(t *testing.T) {
 
 func TestResetTimerOnNewWrite(t *testing.T) {
 	const testfileName = "testfile"
-	err := setup(false)
+	err := setup(t, false)
 	if err != nil {
 		t.Error(err)
 	}
@@ -178,7 +179,7 @@ func TestResetTimerOnNewWrite(t *testing.T) {
 
 	// Test timeout 60 seconds
 	totalErr := errors.New("failed after timer expire")
-	timer := time.AfterFunc(1*time.Minute, func() {
+	time.AfterFunc(1*time.Minute, func() {
 		fw.Close()
 	})
 
