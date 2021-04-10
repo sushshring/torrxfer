@@ -6,6 +6,7 @@ import (
 
 	"github.com/alecthomas/kingpin"
 	"github.com/kelseyhightower/envconfig"
+	"github.com/rs/zerolog"
 	"github.com/sushshring/torrxfer/pkg/common"
 	"github.com/sushshring/torrxfer/pkg/server"
 )
@@ -28,6 +29,12 @@ func main() {
 		glog.Fatal(err)
 	}
 	// Configure logging
-	common.ConfigureLogging(*debug, false, serverConf.Logfile.Writer, os.Stdout)
+	var level zerolog.Level
+	if *debug {
+		level = zerolog.DebugLevel
+	} else {
+		level = zerolog.InfoLevel
+	}
+	common.ConfigureLogging(level, false, serverConf.Logfile.Writer, os.Stdout)
 	server.RunServer(serverConf, *tls, *cafile, *keyfile)
 }
