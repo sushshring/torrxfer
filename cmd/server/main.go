@@ -17,6 +17,7 @@ var (
 	tls     = app.Flag("tls", "Should server use TLS vs plain TCP").Default("false").OverrideDefaultFromEnvar("TORRXFER_SERVER_TLS").Bool()
 	cafile  = app.Flag("cafile", "The file containing the CA root cert file").String()
 	keyfile = app.Flag("keyfile", "The file containing the CA root key file").String()
+	trace   = app.Flag("trace", "Enable trace mode").Default("false").OverrideDefaultFromEnvar("TORRXFER_SERVER_TRACE").Bool()
 	version = "0.1"
 )
 
@@ -30,7 +31,9 @@ func main() {
 	}
 	// Configure logging
 	var level zerolog.Level
-	if *debug {
+	if *trace {
+		level = zerolog.TraceLevel
+	} else if *debug {
 		level = zerolog.DebugLevel
 	} else {
 		level = zerolog.InfoLevel

@@ -197,7 +197,7 @@ func (c *torrxferClient) transferToServers(file *File) {
 				case ConnectionNotificationTypeQueryError:
 					fallthrough
 				case ConnectionNotificationTypeTransferError:
-					log.Debug().Err(notification.Error)
+					log.Debug().Err(notification.Error).Msg("Error during query/transfer")
 					c.jobQueue <- transferJob
 				case ConnectionNotificationTypeCompleted:
 					if c.clientConfig.DeleteOnComplete {
