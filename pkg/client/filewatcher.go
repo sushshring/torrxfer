@@ -33,7 +33,7 @@ type fileWatcher struct {
 // NewFileWatcher starts watching the provided directory for any new writes and here-before unseen files
 // If there is a new file, this will wait up to two minutes for any new writes, at which point it will
 func NewFileWatcher(directory string, mediaDirectoryRoot string) (FileWatcher, error) {
-	log.Debug().Msg("Creating file watcher")
+	log.Trace().Msg("Creating file watcher")
 
 	// Verify media directory root is valid
 	if !common.IsSubdir(mediaDirectoryRoot, directory) {
