@@ -118,10 +118,10 @@ func (s *RPCTorrxferServer) validateIncomingRequest(ctx context.Context) (client
 	err = nil
 	log.Debug().Str("Client ID", clientID).Msg("Processing request")
 
-	log.Debug().Msg("Validating client authorization")
-	if !validateTokenFromMetadata(md) {
-		return "", errInvalidToken
-	}
+	// log.Debug().Msg("Validating client authorization")
+	// if !validateTokenFromMetadata(md) {
+	// 	return "", errInvalidToken
+	// }
 	return
 }
 

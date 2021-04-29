@@ -15,7 +15,6 @@ import (
 	pb "github.com/sushshring/torrxfer/rpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/credentials/oauth"
 	"google.golang.org/grpc/encoding/gzip"
 	_ "google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/metadata"
@@ -77,12 +76,12 @@ func NewTorrxferServerConnection(server common.ServerConnectionConfig) (Torrxfer
 
 		creds := credentials.NewClientTLSFromCert(certPool, server.Address)
 		opts = append(opts, grpc.WithTransportCredentials(creds))
-		perRPCCred, err := oauth.NewServiceAccountFromFile(server.OAuthFile, transferFileOauthCredentialScope)
-		if err != nil {
-			common.LogErrorStack(err, "Failed to initialize auth cred")
-			return nil, err
-		}
-		opts = append(opts, grpc.WithPerRPCCredentials(perRPCCred))
+		// perRPCCred, err := oauth.NewServiceAccountFromFile(server.OAuthFile, transferFileOauthCredentialScope)
+		// if err != nil {
+		// common.LogErrorStack(err, "Failed to initialize auth cred")
+		// return nil, err
+		// }
+		// opts = append(opts, grpc.WithPerRPCCredentials(perRPCCred))
 	} else {
 		opts = append(opts, grpc.WithInsecure())
 	}
