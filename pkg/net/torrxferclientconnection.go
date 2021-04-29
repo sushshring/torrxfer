@@ -46,7 +46,7 @@ func NewRPCTorrxferServer(torrxferServer ITorrxferServer) (server *RPCTorrxferSe
 }
 
 func EnsureValidTokenStream(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-	log.Trace().Msg("Validating token for stream")
+	log.Debug().Msg("Validating token for stream")
 	md, ok := metadata.FromIncomingContext(ss.Context())
 	if !ok {
 		return errMissingMetadata
@@ -58,7 +58,7 @@ func EnsureValidTokenStream(srv interface{}, ss grpc.ServerStream, info *grpc.St
 }
 
 func EnsureValidToken(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-	log.Trace().Msg("Validating token for unary src")
+	log.Debug().Msg("Validating token for unary src")
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
 		return nil, errMissingMetadata
@@ -84,7 +84,7 @@ func validateToken(authorization []string) bool {
 	if len(authorization) < 1 {
 		return false
 	}
-	log.Trace().Str("auth token", authorization[0]).Msg("Validating token")
+	log.Debug().Str("auth token", authorization[0]).Msg("Validating token")
 	oauth2Service, err := oauth2.NewService(context.Background())
 	if err != nil {
 		common.LogErrorStack(err, "Could not create oauth service")
@@ -102,7 +102,7 @@ func validateToken(authorization []string) bool {
 }
 
 func (s *RPCTorrxferServer) validateIncomingRequest(ctx context.Context) (clientID string, err error) {
-	log.Trace().Msg("Validating incoming request")
+	log.Debug().Msg("Validating incoming request")
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
 		err := errors.New("failed to get file metadata. Invalid argument")
@@ -117,7 +117,7 @@ func (s *RPCTorrxferServer) validateIncomingRequest(ctx context.Context) (client
 	}
 	clientID = clientIds[0]
 	err = nil
-	log.Trace().Str("Client ID", clientID).Msg("Processing request")
+	log.Debug().Str("Client ID", clientID).Msg("Processing request")
 	return
 }
 
@@ -133,7 +133,7 @@ func (s *RPCTorrxferServer) TransferFile(stream pb.RpcTorrxferServer_TransferFil
 		fileReq, err := stream.Recv()
 		if err == io.EOF {
 			// Finished receiving file
-			log.Trace().Msg("File finished")
+			log.Debug().Msg("File finished")
 			return nil
 		} else if err != nil {
 			common.LogErrorStack(err, "Error receiving transfer request")
