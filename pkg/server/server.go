@@ -69,7 +69,7 @@ func RunServer(serverConf common.ServerConfig, enableTLS bool, cafilePath, keyfi
 	if serverConf.DbDir == "" {
 		serverDb, err = db.GetDb(serverDbName)
 	} else {
-		serverDb, err = db.GetDb(serverDbName)
+		serverDb, err = db.GetDb(serverDbName, serverConf.DbDir)
 	}
 	if err != nil {
 		log.Fatal().Err(err).Msg("Could not initialize db")
