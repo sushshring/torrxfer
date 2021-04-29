@@ -26,7 +26,8 @@ ENTRYPOINT ["/bin/torrxfer-client", "--config=/config/client.json"]
 FROM gcr.io/distroless/base AS torrxfer-server
 COPY --from=builder /src/bin/torrxfer-server /bin/torrxfer-server
 LABEL Name=torrxfer-server Version=0.0.1
-VOLUME ["/transfers", "/keys/cafile.pem", "/keys/keyfile.pem"]
+VOLUME ["/transfers", "/keys/cafile.pem", "/keys/keyfile.pem", "/db"]
 ENV TORRXFER_SERVER_MEDIADIR=/transfers
+ENV TORRXFER_SERVER_DBDIR /db
 EXPOSE 9650
 ENTRYPOINT ["/bin/torrxfer-server"]

@@ -8,6 +8,10 @@ import (
 
 // IsSubdir returns true if subDir is a sub directory of rootdir
 func IsSubdir(rootDir, subdir string) bool {
+	// File is subdirectory of itself
+	if filepath.Clean(rootDir) == filepath.Clean(subdir) {
+		return true
+	}
 	pattern := filepath.Clean(rootDir) + string(filepath.Separator) + "*"
 	matched, err := filepath.Match(pattern, subdir)
 	return err == nil && matched

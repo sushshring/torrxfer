@@ -65,14 +65,19 @@ func RunServer(serverConf common.ServerConfig, enableTLS bool, cafilePath, keyfi
 		grpc.ChainUnaryInterceptor(net.EnsureValidToken)
 	}
 
-	db, err := db.GetDb(serverDbName)
+	var serverDb db.KvDB
+	if serverConf.DbDir == "" {
+		serverDb, err = db.GetDb(serverDbName)
+	} else {
+		serverDb, err = db.GetDb(serverDbName)
+	}
 	if err != nil {
 		log.Fatal().Err(err).Msg("Could not initialize db")
 	}
 	grpcServer := grpc.NewServer(opts...)
 	server := &TorrxferServer{
 		activeFiles:   make(map[string]*File),
-		fileDb:        db,
+		fileDb:        serverDb,
 		serverRootDir: serverConf.SaveDir.Filepath,
 	}
 	rpcserver := net.NewRPCTorrxferServer(server)

@@ -43,6 +43,7 @@ func (w ServerTransferWorker) doFileTransferJob(job ServerTransferJob) {
 	file.TransferTime = time.Now()
 	remoteFileInfo, err := job.ServerConnection.rpcConnection.QueryFile(file.Path, file.MediaPrefix, job.ID.String())
 	if err != nil {
+		log.Trace().Err(err).Msg("Query file failed")
 		job.sendConnectionNotification(ConnectionNotificationTypeQueryError, 0, err)
 		return
 	}
@@ -90,6 +91,7 @@ func (w ServerTransferWorker) doFileTransferJob(job ServerTransferJob) {
 				offset = 0
 				// Best effort seek to 0. If failed,
 				if _, err := fileOnDisk.Seek(0, 0); err != nil {
+					log.Trace().Err(err).Uint64("offset", offset).Msg("Seek to 0 failed after seek to specific offset failed")
 					job.sendConnectionNotification(ConnectionNotificationTypeFatalError, 0, err)
 				}
 			}
@@ -97,12 +99,14 @@ func (w ServerTransferWorker) doFileTransferJob(job ServerTransferJob) {
 	} else {
 		offset = 0
 		if _, err := fileOnDisk.Seek(0, 0); err != nil {
+			log.Trace().Err(err).Msg("Seek to 0 failed")
 			job.sendConnectionNotification(ConnectionNotificationTypeFatalError, 0, err)
 		}
 	}
 	// Setup the file transfer channels. There may be one blocking call but it should be fairly trivial
 	fileSummaryChan, err := job.ServerConnection.rpcConnection.TransferFile(bytesReader, common.DefaultBlockSize, offset, job.ID.String())
 	if err != nil {
+		log.Trace().Err(err).Msg("Transfer file failed")
 		job.sendConnectionNotification(ConnectionNotificationTypeTransferError, 0, err)
 		return
 	}
@@ -117,6 +121,7 @@ func (w ServerTransferWorker) doFileTransferJob(job ServerTransferJob) {
 		for summary := range summaryChannel {
 			switch summary.NotificationType {
 			case net.TransferNotificationTypeError:
+				log.Trace().Err(err).Msg("Error during bytes transfer")
 				job.sendConnectionNotification(ConnectionNotificationTypeTransferError, 0, summary.Error)
 				continue
 			case net.TransferNotificationTypeBytes:
@@ -164,19 +169,14 @@ func (w ServerTransferWorker) start() {
 	for {
 		// Add my jobQueue to the worker pool.
 		w.workerPool <- w.jobQueue
-
-		select {
-		case job, ok := <-w.jobQueue:
-			if ok {
-
-				// Dispatcher has added a job to my jobQueue.
-				log.Trace().Int("ID", w.id).Str("Job ID", job.ID.String()).Dur("Delay", job.Delay).Msg("Worker started")
-				time.Sleep(job.Delay)
-				w.doFileTransferJob(job)
-			} else {
-				// Job queue was closed. Exit
-				return
-			}
+		if job, ok := <-w.jobQueue; ok {
+			// Dispatcher has added a job to my jobQueue.
+			log.Trace().Int("ID", w.id).Str("Job ID", job.ID.String()).Dur("Delay", job.Delay).Msg("Worker started")
+			time.Sleep(job.Delay)
+			w.doFileTransferJob(job)
+		} else {
+			// Job queue was closed. Exit
+			return
 		}
 	}
 }
