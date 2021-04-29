@@ -9,7 +9,6 @@ import (
 	"github.com/sushshring/torrxfer/pkg/common"
 	pb "github.com/sushshring/torrxfer/rpc"
 	"google.golang.org/api/oauth2/v2"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -45,30 +44,30 @@ func NewRPCTorrxferServer(torrxferServer ITorrxferServer) (server *RPCTorrxferSe
 	return
 }
 
-func EnsureValidTokenStream(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-	log.Debug().Msg("Validating token for stream")
-	md, ok := metadata.FromIncomingContext(ss.Context())
-	if !ok {
-		return errMissingMetadata
-	}
-	if !validateTokenFromMetadata(md) {
-		return errInvalidToken
-	}
-	return handler(srv, ss)
-}
+// func EnsureValidTokenStream(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+// 	log.Debug().Msg("Validating token for stream")
+// 	md, ok := metadata.FromIncomingContext(ss.Context())
+// 	if !ok {
+// 		return errMissingMetadata
+// 	}
+// 	if !validateTokenFromMetadata(md) {
+// 		return errInvalidToken
+// 	}
+// 	return handler(srv, ss)
+// }
 
-func EnsureValidToken(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-	log.Debug().Msg("Validating token for unary src")
-	md, ok := metadata.FromIncomingContext(ctx)
-	if !ok {
-		return nil, errMissingMetadata
-	}
-	if !validateTokenFromMetadata(md) {
-		return nil, errInvalidToken
-	}
-	// Continue execution of handler after ensuring a valid token.
-	return handler(ctx, req)
-}
+// func EnsureValidToken(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+// 	log.Debug().Msg("Validating token for unary src")
+// 	md, ok := metadata.FromIncomingContext(ctx)
+// 	if !ok {
+// 		return nil, errMissingMetadata
+// 	}
+// 	if !validateTokenFromMetadata(md) {
+// 		return nil, errInvalidToken
+// 	}
+// 	// Continue execution of handler after ensuring a valid token.
+// 	return handler(ctx, req)
+// }
 
 func validateTokenFromMetadata(md metadata.MD) bool {
 	// The keys within metadata.MD are normalized to lowercase.
@@ -118,6 +117,11 @@ func (s *RPCTorrxferServer) validateIncomingRequest(ctx context.Context) (client
 	clientID = clientIds[0]
 	err = nil
 	log.Debug().Str("Client ID", clientID).Msg("Processing request")
+
+	log.Debug().Msg("Validating client authorization")
+	if !validateTokenFromMetadata(md) {
+		return "", errInvalidToken
+	}
 	return
 }
 

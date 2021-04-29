@@ -61,8 +61,8 @@ func RunServer(serverConf common.ServerConfig, enableTLS bool, cafilePath, keyfi
 		}
 		opts = []grpc.ServerOption{grpc.Creds(creds)}
 
-		grpc.ChainStreamInterceptor(net.EnsureValidTokenStream)
-		grpc.ChainUnaryInterceptor(net.EnsureValidToken)
+		// grpc.ChainStreamInterceptor(net.EnsureValidTokenStream)
+		// grpc.ChainUnaryInterceptor(net.EnsureValidToken)
 	}
 
 	var serverDb db.KvDB
