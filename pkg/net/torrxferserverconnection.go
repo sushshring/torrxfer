@@ -99,8 +99,6 @@ func NewTorrxferServerConnection(server common.ServerConnectionConfig) (Torrxfer
 
 // QueryFile makes a gRPC call to the provided server and either returns a file summary or FileNotFoundException
 func (client *torrxferServerConnection) QueryFile(filePath string, mediaPrefix string, correlationUUID string) (*RPCFile, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
 	log.Trace().Msg("Starting Query File")
 	file, err := NewFile(filePath)
 	log.Trace().Str("Hash", file.file.DataHash).Msg("File hash")
@@ -108,6 +106,8 @@ func (client *torrxferServerConnection) QueryFile(filePath string, mediaPrefix s
 		common.LogError(err, "Could not set media prefix")
 		return nil, err
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 	ctx = metadata.AppendToOutgoingContext(ctx, "clientdata", correlationUUID)
 	if err != nil {
 		common.LogError(err, "Could not create file")
