@@ -101,7 +101,9 @@ func NewTorrxferServerConnection(server common.ServerConnectionConfig) (Torrxfer
 func (client *torrxferServerConnection) QueryFile(filePath string, mediaPrefix string, correlationUUID string) (*RPCFile, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+	log.Trace().Msg("Starting Query File")
 	file, err := NewFile(filePath)
+	log.Trace().Str("Hash", file.file.DataHash).Msg("File hash")
 	if err := file.SetMediaPath(mediaPrefix); err != nil {
 		common.LogError(err, "Could not set media prefix")
 		return nil, err
@@ -112,6 +114,7 @@ func (client *torrxferServerConnection) QueryFile(filePath string, mediaPrefix s
 		return nil, err
 	}
 	conn := pb.NewRpcTorrxferServerClient(client.cc)
+	log.Trace().Msg("Starting query")
 	fileSummary, err := conn.QueryFile(ctx, file.file)
 	if err != nil {
 		return nil, err
