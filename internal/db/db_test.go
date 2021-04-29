@@ -15,7 +15,7 @@ func TestInitDb(t *testing.T) {
 		dbFileName string = "testDB"
 	)
 	var err error
-	kvDbTest, err = initDb(dbFileName)
+	kvDbTest, err = initDb(dbFileName, os.TempDir())
 	if err != nil {
 		t.Error(err)
 		return
