@@ -21,6 +21,7 @@ var (
 	app     = kingpin.New(name, "Torrent downloaded file transfer server")
 	debug   = app.Flag("debug", "Enable debug mode").Default("false").OverrideDefaultFromEnvar("TORRXFER_CLIENT_DEBUG").Bool()
 	config  = app.Flag("config", "Path to configuration file").Required().File()
+	trace   = app.Flag("trace", "Enable trace mode").Default("false").OverrideDefaultFromEnvar("TORRXFER_SERVER_TRACE").Bool()
 	version = "0.1"
 )
 
@@ -36,7 +37,9 @@ func main() {
 	app.Version(version)
 	kingpin.MustParse(app.Parse(os.Args[1:]))
 	var level zerolog.Level
-	if *debug {
+	if *trace {
+		level = zerolog.TraceLevel
+	} else if *debug {
 		level = zerolog.DebugLevel
 	} else {
 		level = zerolog.InfoLevel

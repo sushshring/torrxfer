@@ -161,6 +161,57 @@ func TestNotifyNewFile(t *testing.T) {
 	}
 }
 
+func TestNotifyNewFileWithSpaceInName(t *testing.T) {
+	const testfileName = "test file"
+	var totalErr error
+	err := setup(t, false)
+	if err != nil {
+		t.Error(err)
+	}
+	t.Cleanup(cleanup)
+	testWatchDirPath := filepath.Join(os.TempDir(), testWatchDir)
+	fw, err := NewFileWatcher(filepath.Join(os.TempDir(), testWatchDir), os.TempDir())
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	waitC := make(chan struct{})
+	defer close(waitC)
+
+	// Test timeout 20 seconds
+	totalErr = errors.New("failed after timer expire")
+	time.AfterFunc(20*time.Second, func() {
+		fw.Close()
+	})
+
+	go func() {
+		time.Sleep(6 * time.Second)
+		t.Log("Creating a new file")
+		file, err := os.Create(filepath.Join(testWatchDirPath, testfileName))
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		defer file.Close()
+		file.WriteString("Hello file")
+	}()
+
+	// Let all files be added to the local db and
+	for file := range fw.RegisterForFileNotifications() {
+		t.Logf("Got file: %s", file.Path)
+		testFilePath := filepath.Join(testWatchDirPath, testfileName)
+		if p, err := common.CleanPath(testFilePath); err != nil {
+			t.Error(err)
+		} else if p != file.Path {
+			t.Errorf("Expected path: %s, got file path: %s", p, file.Path)
+		}
+		totalErr = nil
+	}
+	if totalErr != nil {
+		t.Error(totalErr)
+	}
+}
+
 func TestResetTimerOnNewWrite(t *testing.T) {
 	const testfileName = "testfile"
 	err := setup(t, false)

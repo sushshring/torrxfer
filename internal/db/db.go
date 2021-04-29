@@ -33,9 +33,15 @@ var singleton *kvDb
 var once sync.Once
 
 // GetDb Creates the database or initializes it from an existing file
-func GetDb(dbFileName string) (db KvDB, err error) {
+func GetDb(dbFileName string, dbFileDirectory ...string) (db KvDB, err error) {
 	once.Do(func() {
-		singleton, err = initDb(dbFileName)
+		var iDbFileDirectory string
+		if len(dbFileDirectory) > 0 {
+			iDbFileDirectory = dbFileDirectory[0]
+		} else {
+			iDbFileDirectory = os.TempDir()
+		}
+		singleton, err = initDb(dbFileName, iDbFileDirectory)
 		if err != nil {
 			log.Debug().Err(err).Msg("Could not init DB")
 			singleton = nil
@@ -45,9 +51,8 @@ func GetDb(dbFileName string) (db KvDB, err error) {
 	return
 }
 
-func initDb(dbFileName string) (*kvDb, error) {
-	tempDir := os.TempDir()
-	dbFilePath := filepath.Join(tempDir, dbFileName)
+func initDb(dbFileName, dbFileDirectory string) (*kvDb, error) {
+	dbFilePath := filepath.Join(dbFileDirectory, dbFileName)
 	opts := &pogreb.Options{
 		BackgroundSyncInterval:       2 * time.Minute,
 		BackgroundCompactionInterval: 0,
