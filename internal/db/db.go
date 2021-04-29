@@ -53,6 +53,7 @@ func GetDb(dbFileName string, dbFileDirectory ...string) (db KvDB, err error) {
 
 func initDb(dbFileName, dbFileDirectory string) (*kvDb, error) {
 	dbFilePath := filepath.Join(dbFileDirectory, dbFileName)
+	log.Debug().Str("Location", dbFilePath).Msg("Initializing DB")
 	opts := &pogreb.Options{
 		BackgroundSyncInterval:       2 * time.Minute,
 		BackgroundCompactionInterval: 0,

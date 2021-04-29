@@ -41,6 +41,7 @@ func (w ServerTransferWorker) doFileTransferJob(job ServerTransferJob) {
 	file := job.File
 	// Prime the server for the file.
 	file.TransferTime = time.Now()
+	log.Trace().Str("File Path", file.Path).Str("Media Prefix", file.MediaPrefix).Str("Job ID", job.ID.String()).Msg("Starting job")
 	remoteFileInfo, err := job.ServerConnection.rpcConnection.QueryFile(file.Path, file.MediaPrefix, job.ID.String())
 	if err != nil {
 		log.Trace().Err(err).Msg("Query file failed")
