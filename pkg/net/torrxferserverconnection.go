@@ -20,8 +20,6 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
-const transferFileOauthCredentialScope string = "transferFileOauthCredentialScope"
-
 // TorrxferServerConnection represents a wrapper around the gRPC mechanisms to
 // talk to the torrxfer server
 type TorrxferServerConnection interface {
@@ -76,12 +74,6 @@ func NewTorrxferServerConnection(server common.ServerConnectionConfig) (Torrxfer
 
 		creds := credentials.NewClientTLSFromCert(certPool, server.Address)
 		opts = append(opts, grpc.WithTransportCredentials(creds))
-		// perRPCCred, err := oauth.NewServiceAccountFromFile(server.OAuthFile, transferFileOauthCredentialScope)
-		// if err != nil {
-		// common.LogErrorStack(err, "Failed to initialize auth cred")
-		// return nil, err
-		// }
-		// opts = append(opts, grpc.WithPerRPCCredentials(perRPCCred))
 	} else {
 		opts = append(opts, grpc.WithInsecure())
 	}
