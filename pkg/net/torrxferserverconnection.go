@@ -5,7 +5,6 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -98,8 +97,7 @@ func (client *torrxferServerConnection) QueryFile(filePath string, mediaPrefix s
 		common.LogError(err, "Could not set media prefix")
 		return nil, err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	ctx := context.Background()
 	ctx = metadata.AppendToOutgoingContext(ctx, "clientdata", correlationUUID)
 	if err != nil {
 		common.LogError(err, "Could not create file")
