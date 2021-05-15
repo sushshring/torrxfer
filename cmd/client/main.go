@@ -17,11 +17,16 @@ import (
 )
 
 var (
-	name    = "torrxfer-client"
-	app     = kingpin.New(name, "Torrent downloaded file transfer server")
-	debug   = app.Flag("debug", "Enable debug mode").Default("false").OverrideDefaultFromEnvar("TORRXFER_CLIENT_DEBUG").Bool()
-	config  = app.Flag("config", "Path to configuration file").Required().File()
-	trace   = app.Flag("trace", "Enable trace mode").Default("false").OverrideDefaultFromEnvar("TORRXFER_SERVER_TRACE").Bool()
+	name      = "torrxfer-client"
+	app       = kingpin.New(name, "Torrent downloaded file transfer server")
+	debug     = app.Flag("debug", "Enable debug mode").Default("false").OverrideDefaultFromEnvar("TORRXFER_CLIENT_DEBUG").Bool()
+	config    = app.Flag("config", "Path to configuration file").Required().File()
+	trace     = app.Flag("trace", "Enable trace mode").Default("false").OverrideDefaultFromEnvar("TORRXFER_SERVER_TRACE").Bool()
+	logToFile = app.Flag("nopretty", "Output progress as log statements instead of progress bars").
+			Default("false").
+			OverrideDefaultFromEnvar("TORRXFER_CLIENT_NOPRETTY").
+			Bool()
+
 	version = "0.1"
 )
 
@@ -56,6 +61,10 @@ func main() {
 		os.Exit(-1)
 	}
 
+	var limitedLogger zerolog.Logger
+	if *logToFile {
+		limitedLogger = common.GetRateLimitedLogger(100, os.Stdout)
+	}
 	progressBarMap := make(map[string]*barDetails)
 	p := mpb.New(nil)
 
@@ -70,37 +79,41 @@ func main() {
 		case torrxfer.ConnectionNotificationTypeTransferError:
 			log.Error().Err(notification.Error).Object("Server", notification.Connection).Object("File", notification.SentFile).Msg("Error")
 		case torrxfer.ConnectionNotificationTypeFilesUpdated:
-			if progressBar, ok := progressBarMap[notification.SentFile.Path]; !ok {
-				bar := p.Add(int64(notification.SentFile.Size),
-					mpb.NewBarFiller("[=>-|"),
-					mpb.PrependDecorators(
-						decor.Name(fmt.Sprintf("Transferring file. Name: %s | ", filepath.Base(notification.SentFile.Path))),
-						decor.CountersKiloByte("% .2f / % .2f"),
-					),
-					mpb.AppendDecorators(
-						decor.EwmaETA(decor.ET_STYLE_GO, 60),
-						decor.Name(" ] "),
-						decor.EwmaSpeed(decor.UnitKiB, "% .2f ", 60),
-						decor.OnComplete(
-							// ETA decorator with ewma age of 60
-							decor.Elapsed(decor.ET_STYLE_GO), "done",
-						),
-					),
-				)
-				bar.SetCurrent(int64(notification.Connection.GetFileSizeOnServer(notification.SentFile.Path)))
-				progressBarMap[notification.SentFile.Path] = &barDetails{
-					bar:       bar,
-					startTime: time.Time{},
-					lastTime:  time.Time{},
-					once:      sync.Once{},
-					done:      make(chan struct{}),
-				}
+			if *logToFile {
+				limitedLogger.Info().Object("Server", notification.Connection)
 			} else {
-				progressBar.bar.IncrInt64(int64(notification.LastSentSize))
-				progressBar.bar.DecoratorEwmaUpdate(time.Since(progressBar.lastTime))
-				progressBar.lastTime = time.Now()
+				if progressBar, ok := progressBarMap[notification.SentFile.Path]; !ok {
+					bar := p.Add(int64(notification.SentFile.Size),
+						mpb.NewBarFiller("[=>-|"),
+						mpb.PrependDecorators(
+							decor.Name(fmt.Sprintf("Transferring file. Name: %s | ", filepath.Base(notification.SentFile.Path))),
+							decor.CountersKiloByte("% .2f / % .2f"),
+						),
+						mpb.AppendDecorators(
+							decor.EwmaETA(decor.ET_STYLE_GO, 60),
+							decor.Name(" ] "),
+							decor.EwmaSpeed(decor.UnitKiB, "% .2f ", 60),
+							decor.OnComplete(
+								// ETA decorator with ewma age of 60
+								decor.Elapsed(decor.ET_STYLE_GO), "done",
+							),
+						),
+					)
+					bar.SetCurrent(int64(notification.Connection.GetFileSizeOnServer(notification.SentFile.Path)))
+					progressBarMap[notification.SentFile.Path] = &barDetails{
+						bar:       bar,
+						startTime: time.Time{},
+						lastTime:  time.Time{},
+						once:      sync.Once{},
+						done:      make(chan struct{}),
+					}
+				} else {
+					progressBar.bar.IncrInt64(int64(notification.LastSentSize))
+					progressBar.bar.DecoratorEwmaUpdate(time.Since(progressBar.lastTime))
+					progressBar.lastTime = time.Now()
+				}
+				log.Info().Object("Server", notification.Connection)
 			}
-			log.Info().Object("Server", notification.Connection)
 		}
 	}
 }

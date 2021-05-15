@@ -117,14 +117,20 @@ func (client *torrxferServerConnection) TransferFile(fileBytes *io.PipeReader, b
 	conn := pb.NewRpcTorrxferServerClient(client.cc)
 	fileSummaryChan = make(chan FileTransferNotification)
 
-	ctx := context.Background()
-	ctx = metadata.AppendToOutgoingContext(ctx, "clientdata", correlationUUID)
-	stream, err := conn.TransferFile(ctx)
-	if err != nil {
-		log.Debug().Err(err).Msg("Could not start transferring the file")
-		return nil, err
-	}
 	go func(blockSize uint32, startingOffset uint64) {
+		ctx := context.Background()
+		ctx = metadata.AppendToOutgoingContext(ctx, "clientdata", correlationUUID)
+		stream, err := conn.TransferFile(ctx)
+		if err != nil {
+			log.Debug().Err(err).Msg("Could not start transferring the file")
+			fileSummaryChan <- FileTransferNotification{
+				NotificationType: TransferNotificationTypeError,
+				LastTransferred:  0,
+				CurrentOffset:    startingOffset,
+				Error:            err,
+			}
+			return
+		}
 		defer close(fileSummaryChan)
 		defer stream.CloseAndRecv()
 		defer fileBytes.Close()
