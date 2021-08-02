@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	gnet "net"
 	"os"
 	"os/signal"
@@ -93,6 +94,68 @@ func RunServer(serverConf common.ServerConfig, enableTLS bool, cafilePath, keyfi
 	}
 	server.fileDb.Close()
 	return server
+}
+
+func RebuildDb(serverConf common.ServerConfig) {
+	// We ignore the error here
+	internalDb, err := db.GetDbAdmin(serverDbName, serverConf.DbDir)
+	log.Info().AnErr("Initial error", err).Msg("")
+	// Move old files to a backup directory
+	log.Info().Str("DB path", internalDb.GetDbFilePath()).Msg("Moving db files")
+	if err := os.Rename(internalDb.GetDbFilePath(), internalDb.GetDbFilePath()+".bak"); err != nil {
+		log.Panic().Err(err).Msg("Failed to backup old db files")
+	}
+
+	internalDb, err = db.GetDbAdmin(serverDbName, serverConf.DbDir)
+	if err != nil {
+		log.Panic().Err(err).Msg("Cannot open new DB")
+	}
+
+	filepath.WalkDir(serverConf.SaveDir.Filepath, func(path string, d fs.DirEntry, err error) error {
+		log.Info().Str(path, "Path").Msg("Processing: ")
+		if !d.IsDir() {
+			info, err := d.Info()
+			if err != nil {
+				log.Error().Err(err).Msg("Error getting file info")
+				return nil
+			}
+			serverFile := &File{
+				fullPath:     path,
+				mediaPrefix:  serverConf.SaveDir.Filepath,
+				size:         uint64(info.Size()),
+				currentSize:  uint64(info.Size()),
+				creationTime: info.ModTime(),
+				modifiedTime: info.ModTime(),
+				writeChannel: nil,
+				readChannel:  nil,
+				errorChannel: nil,
+				doneChannel:  nil,
+				mux:          fslock.Lock{},
+				Cond: sync.Cond{
+					L: &sync.RWMutex{},
+				},
+				RWMutex: sync.RWMutex{},
+				Once:    sync.Once{},
+			}
+			bytes, err := serverFile.MarshalText()
+			if err != nil {
+				log.Error().Err(err).Msg("Could not marshal file data")
+				return nil
+			}
+			log.Info().Msg("Generating hash")
+			rpcFile, err := serverFile.GenerateRPCFile()
+			if err != nil {
+				log.Error().Err(err).Msg("Could not generate RPC file")
+			}
+			err = internalDb.GetDb().Put(rpcFile.GetDataHash(), string(bytes))
+			if err != nil {
+				log.Error().Err(err).Msg("Failed to write to db")
+			}
+			log.Info().Msg("Processing complete. Next file")
+		}
+		return nil
+	})
+	internalDb.GetDb().Close()
 }
 
 // QueryFunction implementation for gRPC call query file. Returns current file information and sets the file as a target for that connection clientID

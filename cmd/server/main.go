@@ -12,18 +12,22 @@ import (
 )
 
 var (
-	app     = kingpin.New("torrxfer-server", "Torrent downloaded file transfer server")
-	debug   = app.Flag("debug", "Enable debug mode").Default("false").OverrideDefaultFromEnvar("TORRXFER_SERVER_DEBUG").Bool()
-	tls     = app.Flag("tls", "Should server use TLS vs plain TCP").Default("false").OverrideDefaultFromEnvar("TORRXFER_SERVER_TLS").Bool()
-	cafile  = app.Flag("cafile", "The file containing the CA root cert file").String()
-	keyfile = app.Flag("keyfile", "The file containing the CA root key file").String()
-	trace   = app.Flag("trace", "Enable trace mode").Default("false").OverrideDefaultFromEnvar("TORRXFER_SERVER_TRACE").Bool()
+	app       = kingpin.New("torrxfer-server", "Torrent downloaded file transfer server")
+	debug     = app.Flag("debug", "Enable debug mode").Default("false").OverrideDefaultFromEnvar("TORRXFER_SERVER_DEBUG").Bool()
+	tls       = app.Flag("tls", "Should server use TLS vs plain TCP").Default("false").OverrideDefaultFromEnvar("TORRXFER_SERVER_TLS").Bool()
+	cafile    = app.Flag("cafile", "The file containing the CA root cert file").String()
+	keyfile   = app.Flag("keyfile", "The file containing the CA root key file").String()
+	trace     = app.Flag("trace", "Enable trace mode").Default("false").OverrideDefaultFromEnvar("TORRXFER_SERVER_TRACE").Bool()
+	adminMode = app.Flag("admin", "Enable administration mode").Default("false").Bool()
+	rebuildDb = app.Command("rebuilddb", "Rebuild database from file system")
+	run       = app.Command("run", "Run server")
+	// rebuildDbPath = rebuildDb.Arg("path", "Path to rebuild DB from file system").Required().String()
 	version = "0.1"
 )
 
 func main() {
 	app.Version(version)
-	kingpin.MustParse(app.Parse(os.Args[1:]))
+	cmd := kingpin.MustParse(app.Parse(os.Args[1:]))
 	var serverConf common.ServerConfig
 	err := envconfig.Process("TORRXFER_SERVER", &serverConf)
 	if err != nil {
@@ -39,5 +43,15 @@ func main() {
 		level = zerolog.InfoLevel
 	}
 	common.ConfigureLogging(level, false, serverConf.Logfile.Writer, os.Stdout)
-	server.RunServer(serverConf, *tls, *cafile, *keyfile)
+
+	if *adminMode {
+		if cmd == rebuildDb.FullCommand() {
+			server.RebuildDb(serverConf)
+		}
+	} else {
+		if cmd == run.FullCommand() {
+			server.RunServer(serverConf, *tls, *cafile, *keyfile)
+		}
+	}
+	kingpin.Usage()
 }
