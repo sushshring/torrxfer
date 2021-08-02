@@ -88,3 +88,9 @@ func AddLogger(logger io.Writer, shortLog bool) {
 	multi := zerolog.MultiLevelWriter(multis...)
 	log.Logger = zerolog.New(multi).With().Caller().Stack().Logger()
 }
+
+func GetRateLimitedLogger(rate uint32, logger io.Writer) zerolog.Logger {
+	l := zerolog.New(logger).With().Logger()
+	sampled := l.Sample(&zerolog.BasicSampler{N: rate})
+	return sampled
+}

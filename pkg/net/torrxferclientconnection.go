@@ -8,8 +8,6 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/sushshring/torrxfer/pkg/common"
 	pb "github.com/sushshring/torrxfer/rpc"
-	"google.golang.org/api/oauth2/v2"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -17,7 +15,6 @@ import (
 
 var (
 	errMissingMetadata = status.Errorf(codes.InvalidArgument, "missing metadata")
-	errInvalidToken    = status.Errorf(codes.Unauthenticated, "invalid token")
 	errTransferRequest = status.Errorf(codes.Internal, "internal error on transfer")
 	errQueryRequest    = status.Errorf(codes.Internal, "internal error on query")
 )
@@ -45,60 +42,8 @@ func NewRPCTorrxferServer(torrxferServer ITorrxferServer) (server *RPCTorrxferSe
 	return
 }
 
-func EnsureValidTokenStream(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-	md, ok := metadata.FromIncomingContext(ss.Context())
-	if !ok {
-		return errMissingMetadata
-	}
-	if !validateTokenFromMetadata(md) {
-		return errInvalidToken
-	}
-	return handler(srv, ss)
-}
-
-func EnsureValidToken(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-	md, ok := metadata.FromIncomingContext(ctx)
-	if !ok {
-		return nil, errMissingMetadata
-	}
-	if !validateTokenFromMetadata(md) {
-		return nil, errInvalidToken
-	}
-	// Continue execution of handler after ensuring a valid token.
-	return handler(ctx, req)
-}
-
-func validateTokenFromMetadata(md metadata.MD) bool {
-	// The keys within metadata.MD are normalized to lowercase.
-	// See: https://godoc.org/google.golang.org/grpc/metadata#New
-	f, ok := md["authorization"]
-	if !ok {
-		return false
-	}
-	return validateToken(f)
-}
-
-func validateToken(authorization []string) bool {
-	if len(authorization) < 1 {
-		return false
-	}
-	oauth2Service, err := oauth2.NewService(context.Background())
-	if err != nil {
-		common.LogErrorStack(err, "Could not create oauth service")
-		return false
-	}
-	tokenInfoCall := oauth2Service.Tokeninfo()
-	tokenInfoCall.AccessToken(authorization[0])
-	tokenInfo, err := tokenInfoCall.Do()
-	if err != nil {
-		common.LogErrorStack(err, "Could not validate token")
-		return false
-	}
-	log.Info().Str("Granted scope", tokenInfo.Scope).Msg("Validated request")
-	return true
-}
-
 func (s *RPCTorrxferServer) validateIncomingRequest(ctx context.Context) (clientID string, err error) {
+	log.Debug().Msg("Validating incoming request")
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
 		err := errors.New("failed to get file metadata. Invalid argument")
@@ -113,6 +58,8 @@ func (s *RPCTorrxferServer) validateIncomingRequest(ctx context.Context) (client
 	}
 	clientID = clientIds[0]
 	err = nil
+	log.Debug().Str("Client ID", clientID).Msg("Processing request")
+
 	return
 }
 
@@ -128,7 +75,7 @@ func (s *RPCTorrxferServer) TransferFile(stream pb.RpcTorrxferServer_TransferFil
 		fileReq, err := stream.Recv()
 		if err == io.EOF {
 			// Finished receiving file
-			log.Trace().Msg("File finished")
+			log.Debug().Msg("File finished")
 			return nil
 		} else if err != nil {
 			common.LogErrorStack(err, "Error receiving transfer request")

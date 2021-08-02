@@ -5,7 +5,6 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -15,13 +14,10 @@ import (
 	pb "github.com/sushshring/torrxfer/rpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/credentials/oauth"
 	"google.golang.org/grpc/encoding/gzip"
 	_ "google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/metadata"
 )
-
-const transferFileOauthCredentialScope string = "transferFileOauthCredentialScope"
 
 // TorrxferServerConnection represents a wrapper around the gRPC mechanisms to
 // talk to the torrxfer server
@@ -77,12 +73,6 @@ func NewTorrxferServerConnection(server common.ServerConnectionConfig) (Torrxfer
 
 		creds := credentials.NewClientTLSFromCert(certPool, server.Address)
 		opts = append(opts, grpc.WithTransportCredentials(creds))
-		perRPCCred, err := oauth.NewServiceAccountFromFile(server.OAuthFile, transferFileOauthCredentialScope)
-		if err != nil {
-			common.LogErrorStack(err, "Failed to initialize auth cred")
-			return nil, err
-		}
-		opts = append(opts, grpc.WithPerRPCCredentials(perRPCCred))
 	} else {
 		opts = append(opts, grpc.WithInsecure())
 	}
@@ -100,19 +90,21 @@ func NewTorrxferServerConnection(server common.ServerConnectionConfig) (Torrxfer
 
 // QueryFile makes a gRPC call to the provided server and either returns a file summary or FileNotFoundException
 func (client *torrxferServerConnection) QueryFile(filePath string, mediaPrefix string, correlationUUID string) (*RPCFile, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	log.Trace().Msg("Starting Query File")
 	file, err := NewFile(filePath)
+	log.Trace().Str("Hash", file.file.DataHash).Msg("File hash")
 	if err := file.SetMediaPath(mediaPrefix); err != nil {
 		common.LogError(err, "Could not set media prefix")
 		return nil, err
 	}
+	ctx := context.Background()
 	ctx = metadata.AppendToOutgoingContext(ctx, "clientdata", correlationUUID)
 	if err != nil {
 		common.LogError(err, "Could not create file")
 		return nil, err
 	}
 	conn := pb.NewRpcTorrxferServerClient(client.cc)
+	log.Trace().Msg("Starting query")
 	fileSummary, err := conn.QueryFile(ctx, file.file)
 	if err != nil {
 		return nil, err
@@ -125,14 +117,20 @@ func (client *torrxferServerConnection) TransferFile(fileBytes *io.PipeReader, b
 	conn := pb.NewRpcTorrxferServerClient(client.cc)
 	fileSummaryChan = make(chan FileTransferNotification)
 
-	ctx := context.Background()
-	ctx = metadata.AppendToOutgoingContext(ctx, "clientdata", correlationUUID)
-	stream, err := conn.TransferFile(ctx)
-	if err != nil {
-		log.Debug().Err(err).Msg("Could not start transferring the file")
-		return nil, err
-	}
 	go func(blockSize uint32, startingOffset uint64) {
+		ctx := context.Background()
+		ctx = metadata.AppendToOutgoingContext(ctx, "clientdata", correlationUUID)
+		stream, err := conn.TransferFile(ctx)
+		if err != nil {
+			log.Debug().Err(err).Msg("Could not start transferring the file")
+			fileSummaryChan <- FileTransferNotification{
+				NotificationType: TransferNotificationTypeError,
+				LastTransferred:  0,
+				CurrentOffset:    startingOffset,
+				Error:            err,
+			}
+			return
+		}
 		defer close(fileSummaryChan)
 		defer stream.CloseAndRecv()
 		defer fileBytes.Close()
