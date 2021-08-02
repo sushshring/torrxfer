@@ -14,6 +14,16 @@ import (
 
 const threshold = 1000
 
+type KvDBAdmin interface {
+	GetDbFilePath() string
+	GetDb() KvDB
+}
+
+type kvDbAdmin struct {
+	innerDb    *pogreb.DB
+	dbFilePath string
+}
+
 // KvDB is a simple file backed key value persistent store
 type KvDB interface {
 	Close()
@@ -49,6 +59,23 @@ func GetDb(dbFileName string, dbFileDirectory ...string) (db KvDB, err error) {
 	})
 	db = singleton
 	return
+}
+
+func GetDbAdmin(dbFileName string, dbFileDirectory ...string) (db KvDBAdmin, err error) {
+	var iDbFileDirectory string
+	if len(dbFileDirectory) > 0 {
+		iDbFileDirectory = dbFileDirectory[0]
+	} else {
+		iDbFileDirectory = os.TempDir()
+	}
+
+	dbFilePath := filepath.Join(iDbFileDirectory, dbFileName)
+	opts := &pogreb.Options{
+		FileSystem: fs.OS,
+	}
+	innerDb, err := pogreb.Open(dbFilePath, opts)
+	db = &kvDbAdmin{innerDb, dbFilePath}
+	return db, err
 }
 
 func initDb(dbFileName, dbFileDirectory string) (*kvDb, error) {
@@ -146,4 +173,23 @@ func (db *kvDb) Has(key string) (has bool) {
 		has = false
 	}
 	return
+}
+
+func (db *kvDbAdmin) GetDbFilePath() string {
+	return db.dbFilePath
+}
+
+func (db *kvDbAdmin) GetDb() KvDB {
+	c := make(chan struct{})
+	go func() {
+		calledCounter := 0
+		for range c {
+			calledCounter++
+			if calledCounter == threshold {
+				db.innerDb.Compact()
+				calledCounter = 0
+			}
+		}
+	}()
+	return &kvDb{db.innerDb, c, sync.Mutex{}}
 }
